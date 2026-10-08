@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: echoforge-mcp
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python server.py"
+    envVars:
+      - key: MCP_AUTH_TOKEN
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.12.0
