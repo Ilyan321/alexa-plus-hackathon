@@ -37,7 +37,38 @@ def query_dmo_deviation(feature_name: str) -> str:
     except Exception as e:
         return f"Failed to parse legacy file: {str(e)}"
 
+import threading
+import time
+
+def generate_dummy_dmo():
+    """Background thread to write mock DMO files simulating a live factory machine."""
+    os.makedirs("factory_data", exist_ok=True)
+    count = 0
+    while True:
+        # We will alternate the deviation to simulate live changes
+        deviation = 1.800 if count % 2 == 0 else 2.100
+        content = f"""START_INSPECTION_ROUTINE/ AERO_BRACKET_V4
+DATE/ 2026-10-09
+MACHINE/ HEXAGON_GLOBAL_S
+
+FILNAM/ UPPER_FLANGE
+NOMINAL/ 50.000
+MEASURED/ {50.0 + deviation:.3f}
+DEVIATION/ {deviation:.3f}
+TOLERANCE_ZONE/ 2.000
+
+END_INSPECTION/"""
+        with open(DMO_FILE_PATH, 'w') as f:
+            f.write(content)
+        count += 1
+        time.sleep(60)
+
 if __name__ == "__main__":
+    print("Starting background dummy data generator...")
+    # Start the data generator as a daemon thread
+    t = threading.Thread(target=generate_dummy_dmo, daemon=True)
+    t.start()
+    
     print("Starting EchoForge MCP Server on Streamable HTTP...")
     
     # In a production environment on Render, we use an auth token.
