@@ -1,9 +1,9 @@
 import os
 import re
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-# Initialize FastMCP Server
-mcp = FastMCP("EchoForge Metrology Bridge")
+# Initialize MCP Server
+mcp = MCPServer("EchoForge Metrology Bridge")
 
 DMO_FILE_PATH = os.path.join("factory_data", "inspection_latest.dmo")
 
