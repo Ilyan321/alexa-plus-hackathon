@@ -1,34 +1,35 @@
-# Hackathon Roadmap: Project Forge
+# Hackathon Roadmap: EchoForge
 
-## Phase 1: Infrastructure & Environment (Days 1-3)
-**Objective:** Set up the cloud and local environments, ensuring we have API access and the necessary IAM roles.
-*   [ ] Register for the Amazon Developer Console and AWS (claim hackathon credits).
-*   [ ] Configure AWS Bedrock model access (Claude 3.5 Sonnet).
-*   [ ] Set up the local Python virtual environment.
-*   [ ] Create a basic "Hello World" Alexa Skill in the Developer Console Simulator.
+## Phase 1: The Local Edge (COMPLETED)
+**Objective:** Build and test the local Python MCP server and logic.
+*   [x] Initialize GitHub Monorepo.
+*   [x] Write Python MCP Server (`MCPServer`) with `query_dmo_deviation` tool.
+*   [x] Create test data (`happy_path.dmo`, `malformed.dmo`).
+*   [x] Write and pass robust logic tests.
+*   [x] Push to GitHub.
 
-## Phase 2: The Local Edge (Days 4-7)
-**Objective:** Build the local Python MCP server and the dummy data generator.
-*   [ ] Write a Python script to generate mock `.DMO` (Coordinate Measuring) files.
-*   [ ] Write the MCP Server using the official Python MCP SDK.
-*   [ ] Implement the `query_dmo_deviation` tool within the MCP Server.
-*   [ ] Expose the local MCP server to the internet using `ngrok` (for testing with the cloud).
+## Phase 2: Deployment & Free Infrastructure
+**Objective:** Get the MCP server live on the internet for $0.
+*   [ ] Connect the GitHub repo to Render.com.
+*   [ ] Deploy the MCP server via the `render.yaml` blueprint.
+*   [ ] Verify the public Render URL and Authentication token.
+*   [ ] Implement the background data-generator thread on the Render server.
 
-## Phase 3: The Cloud Brain (Days 8-11)
-**Objective:** Connect AWS Bedrock to the local MCP server so it can "reason" about local files.
-*   [ ] Set up an AWS Lambda function as the backend for the Alexa Skill.
-*   [ ] Configure Bedrock AgentCore to use the ngrok URL as an MCP Streamable HTTP endpoint.
-*   [ ] Test the prompt: "Check the local system for the upper flange deviation."
+## Phase 3: The Voice & 3D Dashboard
+**Objective:** Build the Alexa+ Simulation Web App.
+*   [ ] Scaffold a React/Next.js web app.
+*   [ ] Implement Web Speech API (Speech-to-Text and Text-to-Speech).
+*   [ ] Integrate a free LLM API (Groq/Gemini) that connects to the Render MCP URL.
+*   [ ] Load a basic 3D model (e.g., a bracket) using Three.js/React Three Fiber.
 
-## Phase 4: Integration & UX (Days 12-13)
-**Objective:** Connect Alexa to the Lambda function and polish the voice responses.
-*   [ ] Link the Alexa Custom Skill to the AWS Lambda ARN.
-*   [ ] Refine the LLM system prompt so Alexa responds concisely (e.g., "It passes," rather than a long essay).
-*   [ ] Conduct end-to-end testing purely via the Alexa Developer Console Simulator.
+## Phase 4: Integration & The "Wow Factor"
+**Objective:** Connect the LLM responses to the 3D model state.
+*   [ ] Configure the LLM to output structured responses (e.g., JSON) alongside the speech text.
+*   [ ] Write UI logic: If LLM reports a failed tolerance for "UPPER_FLANGE", change the color of that 3D mesh node to red.
+*   [ ] Polish the UI to look like an industrial dashboard.
 
-## Phase 5: Submission Polish (Days 14-15)
-**Objective:** Finalize the video, code cleanup, and documentation.
-*   [ ] Record the 3-minute split-screen demo video.
-*   [ ] Complete the `friction_log.md` with documented AWS/MCP setup issues.
-*   [ ] Finalize the GitHub `README.md` and apply an Open Source license.
-*   [ ] Submit the project.
+## Phase 5: Submission Polish
+**Objective:** Finalize the video and documentation.
+*   [ ] Record the 3-minute demo video (showing the voice and 3D highlighting).
+*   [ ] Finalize the GitHub `README.md`.
+*   [ ] Submit the project to Devpost.

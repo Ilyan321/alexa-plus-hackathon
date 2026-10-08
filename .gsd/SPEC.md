@@ -1,40 +1,34 @@
-# Project Specification: Industrial Voice-to-Edge Bridge (Project Forge)
+# Project Specification: EchoForge - Industrial Voice-to-Edge Bridge
 
 **Status:** FINALIZED
-**Target:** Amazon Developer Hackathon (Alexa+ Track, AWS Builder Track)
+**Target:** Amazon Developer Hackathon (Alexa+ Track)
+**Strategic Pivot:** Dropped AWS Builder mini-challenge (No-Cost Route).
 
 ## 1. Executive Summary
-Project Forge bridges the gap between modern cloud-based conversational AI (Alexa+) and offline, legacy industrial desktop software. By utilizing the Model Context Protocol (MCP) Streamable HTTP transport, it allows operators in "hands-busy, eyes-busy" environments (like aerospace metrology or medical pathology) to query local, cryptic data files using natural voice commands, saving thousands of hours in manual data-entry and cross-referencing.
+EchoForge bridges the gap between modern conversational AI (Alexa+) and offline, legacy industrial desktop software. By utilizing the Model Context Protocol (MCP), it allows operators in "hands-busy, eyes-busy" environments (like aerospace metrology) to query local data files using natural voice commands, visualizing the data instantly on a 3D Digital Twin.
 
 ## 2. Core Architecture
-The system consists of three primary layers:
-1.  **The Voice Interface (Alexa+):** Captures the user's natural language intent.
-2.  **The Orchestrator (AWS Bedrock AgentCore):** Uses Claude 3.5 Sonnet to process the semantic intent, determine the required local data, and generate the proper tool invocation.
-3.  **The Edge Bridge (Local MCP Server):** A lightweight Python script running on the operator's laptop. It watches a local directory for legacy data files (e.g., Hexagon PC-DMIS `.DMO` files), parses the unstructured text, and exposes the exact metric back to the cloud via a secure, stateless HTTP payload.
+The system consists of two primary layers (Zero Cost Architecture):
+1.  **The Voice-Native Frontend (Alexa+ Clone):** A sleek React/Next.js web dashboard simulating the Alexa+ experience. It uses the browser's native Web Speech API for voice I/O, a free LLM API (like Groq or Gemini Free Tier) for intent parsing, and renders a 3D digital twin of the aerospace part using Three.js.
+2.  **The Edge Bridge (Render MCP Server):** A Python MCP server deployed to Render's free tier. It generates and parses legacy `.DMO` inspection files, exposing specific tools (`get_feature_deviation`) to the frontend agent.
 
 ## 3. Product Requirements (Hackathon Scope)
 
 ### 3.1. Required Features (P0)
-*   **Dummy File Generator:** A local Python script that generates mock `.DMO` inspection files with FILNAM tags and coordinate deviation data.
-*   **MCP Server (Python):** Must implement the `2025-11-25+ Streamable HTTP` specification.
-*   **MCP Tool Exposure:** Expose a tool `query_dmo_deviation(feature_name)` that parses the latest `.DMO` file and returns the specific deviation value.
-*   **AWS Bedrock Integration:** Configure Bedrock AgentCore to connect to the MCP server.
-*   **Alexa Skill:** Create a Custom Skill in the Alexa Developer Console that acts as the front-end for the Bedrock agent.
-
-### 3.2. Architecture & Deployment Decisions (Locked)
-*   **Repository Structure:** Monorepo. The codebase will contain `/aws-backend` (SAM template) and `/mcp-server` (Render web service).
-*   **MCP Server Deployment:** Deployed to Render.com as a public web service to provide a permanent, reliable HTTPS endpoint (simulating the remote factory edge for the judges).
-*   **Data Simulation:** A background Python thread on the Render server will physically write and overwrite a `.DMO` text file on the local disk every 60 seconds. This proves the MCP server executes real filesystem I/O.
-*   **AWS Backend Deployment:** Managed via AWS SAM (Serverless Application Model) for professional Infrastructure-as-Code.
+*   **MCP Server (Python):** `2025-11-25+ Streamable HTTP` specification (using `MCPServer`).
+*   **Dummy Data Generator:** Background thread on Render physically writing `.DMO` files.
+*   **MCP Tool:** `query_dmo_deviation(feature_name)` to parse unstructured `.DMO` files.
+*   **Web Speech UI:** Push-to-talk browser interface simulating Alexa+.
+*   **Free LLM Agent:** A backend/frontend logic layer calling a free LLM API, equipped to connect to our Render MCP Server.
+*   **3D Digital Twin:** WebGL/Three.js rendering of a CAD model. When the LLM reports a failed tolerance, the UI dynamically highlights that specific feature on the 3D model in red.
 
 ## 4. Judging Alignment & Success Criteria
-*   **Tech Implementation (Alexa+):** Validates the use of MCP Streamable HTTP.
-*   **AWS Builder Mini-Challenge:** Validates the integration of AWS Bedrock for orchestration.
-*   **Potential Impact:** Proves a multi-million dollar B2B use case, contrasting with saturated consumer apps.
-*   **Friction Log Bonus:** We will actively document pain points when integrating the Bedrock AgentCore with the local MCP server.
+*   **Tech Implementation (Alexa+):** Perfectly aligns with the rules' instruction to "simulate an Alexa+ experience using your preferred agentic tools via a web app".
+*   **Wow Factor:** 3D digital twin paired with native voice control creates a massive B2B impact demo.
+*   **Budget:** $0.00. No AWS, no credit cards.
 
 ## 5. Demo Video Flow
-*   **Scene:** Presenter wearing heavy nitrile gloves, holding a physical prop (metal bracket).
-*   **Action:** "Alexa, check the Bedrock system. Did the upper flange pass the 2-micron tolerance?"
-*   **System:** Alexa processes via Bedrock, which calls the local MCP server. MCP parses the local `.DMO` file and returns `1.8`.
-*   **Result:** Alexa replies aloud that the part passes.
+*   **Scene:** Split screen: Presenter with headset on the left, Voice/3D Dashboard on the right.
+*   **Action:** Presenter says: "Alexa, check the metrology system. What is the status of the upper flange?"
+*   **System:** Voice transcribed in browser -> LLM agent queries Render MCP -> MCP reads `.DMO` -> Returns 1.8 deviation (out of tolerance).
+*   **Result:** The UI reads out the failure aloud while the 3D model spins and flashes the upper flange in red.
