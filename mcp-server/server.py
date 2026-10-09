@@ -1,19 +1,19 @@
 import os
 import re
-from mcp.server.mcpserver import MCPServer
+import json
 import threading
 import time
 import uvicorn
 from starlette.applications import Starlette
 from starlette.routing import Route
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
+from mcp.server.mcpserver import MCPServer
 from mcp.server.sse import SseServerTransport
 
 mcp = MCPServer("EchoForge Metrology Bridge")
 DMO_FILE_PATH = os.path.join("factory_data", "inspection_latest.dmo")
 
-@mcp.tool()
-def query_dmo_deviation(feature_name: str) -> str:
+def get_deviation(feature_name: str) -> str:
     if not os.path.exists(DMO_FILE_PATH):
         return f"Error: Could not find DMO file."
     try:
@@ -29,6 +29,19 @@ def query_dmo_deviation(feature_name: str) -> str:
     except Exception as e:
         return f"Failed: {str(e)}"
 
+@mcp.tool()
+def query_dmo_deviation(feature_name: str) -> str:
+    """Reads the local .DMO legacy inspection file and returns the deviation for a specific feature."""
+    return get_deviation(feature_name)
+
+async def rest_query(request):
+    try:
+        body = await request.json()
+        feature = body.get("feature_name", "UPPER_FLANGE")
+        return JSONResponse({"deviation_info": get_deviation(feature)})
+    except:
+        return JSONResponse({"deviation_info": get_deviation("UPPER_FLANGE")})
+
 def generate_dummy_dmo():
     os.makedirs("factory_data", exist_ok=True)
     count = 0
@@ -39,24 +52,10 @@ def generate_dummy_dmo():
         count += 1
         time.sleep(60)
 
-class LoggingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        body = await request.body()
-        print(f"INCOMING REQUEST: {request.method} {request.url.path} HEADERS: {request.headers} BODY: {body.decode('utf-8', errors='ignore')}", flush=True)
-        # We need to put the body back so the downstream can read it
-        async def receive():
-            return {"type": "http.request", "body": body}
-        request._receive = receive
-        response = await call_next(request)
-        print(f"OUTGOING RESPONSE: {response.status_code}", flush=True)
-        return response
-
 if __name__ == "__main__":
     t = threading.Thread(target=generate_dummy_dmo, daemon=True)
     t.start()
-    
     port = int(os.environ.get("PORT", 8000))
-    
     sse = SseServerTransport("/messages")
     
     async def handle_sse(request):
@@ -69,8 +68,8 @@ if __name__ == "__main__":
     app = Starlette(debug=True, routes=[
         Route("/sse", endpoint=handle_sse, methods=["GET"]),
         Route("/sse", endpoint=handle_messages, methods=["POST"]),
-        Route("/messages", endpoint=handle_messages, methods=["POST"])
+        Route("/messages", endpoint=handle_messages, methods=["POST"]),
+        Route("/query", endpoint=rest_query, methods=["POST"])
     ])
-    app.add_middleware(LoggingMiddleware)
     
     uvicorn.run(app, host="0.0.0.0", port=port)
