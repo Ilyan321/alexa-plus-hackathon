@@ -34,6 +34,16 @@ def query_dmo_deviation(feature_name: str) -> str:
     """Reads the local .DMO legacy inspection file and returns the deviation for a specific feature."""
     return get_deviation(feature_name)
 
+@mcp.tool()
+def get_repair_procedure(feature_name: str, deviation_microns: float) -> str:
+    """Gets the standard engineering repair procedure for a feature that is out of tolerance."""
+    if "FLANGE" in feature_name.upper():
+        return f"REPAIR PROCEDURE FOR {feature_name}: Apply CNC re-milling program 4A to shave off {deviation_microns} microns. Recalibrate robotic welder offset by -0.05mm."
+    elif "HOLE" in feature_name.upper():
+        return f"REPAIR PROCEDURE FOR {feature_name}: Bore out hole by an additional {deviation_microns} microns using titanium drill bit T-12."
+    else:
+        return f"REPAIR PROCEDURE FOR {feature_name}: Standard manual sanding and re-measurement required."
+
 async def rest_query(request):
     try:
         body = await request.json()
