@@ -1,8 +1,8 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
-// We dynamically import the 3D scene to avoid SSR issues with Three.js
+// Dynamically import the 3D scene to avoid SSR issues with Three.js
 const Scene = dynamic(() => import('@/components/Scene'), { ssr: false });
 
 export default function Home() {
@@ -12,6 +12,11 @@ export default function Home() {
   const [deviationStatus, setDeviationStatus] = useState<'normal' | 'error' | 'idle'>('idle');
   const [repairProcedure, setRepairProcedure] = useState('');
   const [sessionId, setSessionId] = useState('');
+  const recognitionRef = useRef<any>(null);
+
+  const stripThinking = (text: string) => {
+    return text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+  };
 
   const callAgent = async (prompt: string, currentSession: string = '') => {
     const res = await fetch('/api/agent', {
@@ -22,43 +27,92 @@ export default function Home() {
     return await res.json();
   };
 
-  const handleMicClick = async () => {
-    setIsListening(!isListening);
-    if (!isListening) {
-      setTranscript("Checking UPPER_FLANGE deviation...");
-      setAgentResponse("Metrology Agent is analyzing live factory sensors...");
-      setRepairProcedure('');
-      setDeviationStatus('idle');
+  const processWorkflow = async (userPrompt: string) => {
+    setAgentResponse("Metrology Agent is analyzing live factory sensors...");
+    setRepairProcedure('');
+    setDeviationStatus('idle');
+    
+    try {
+      // Keep it on rails for the demo by appending specific instructions
+      const railsPrompt = userPrompt ? `${userPrompt}\n\nTask: Check the factory deviation for UPPER_FLANGE. Reply with only the number in microns.` : "What is the factory deviation for UPPER_FLANGE? Reply with only the number in microns.";
       
-      try {
-        const data = await callAgent("What is the factory deviation for UPPER_FLANGE? Reply with only the number in microns.");
+      const data = await callAgent(railsPrompt);
+      
+      if (data.text) {
+        const cleanResponse = stripThinking(data.text);
+        setAgentResponse(`Live deviation: ${cleanResponse}`);
+        setSessionId(data.sessionId);
         
-        if (data.text) {
-          setAgentResponse(`Live deviation: ${data.text}`);
-          setSessionId(data.sessionId);
+        const deviationValue = parseFloat(cleanResponse.match(/[\d\.]+/)?.[0] || '0');
+        if (deviationValue > 2.0) {
+          setDeviationStatus('error');
+          setRepairProcedure("Engineering Agent is formulating repair procedure...");
           
-          const deviationValue = parseFloat(data.text.match(/[\d\.]+/)?.[0] || '0');
-          if (deviationValue > 2.0) {
-            setDeviationStatus('error');
-            setRepairProcedure("Engineering Agent is formulating repair procedure...");
-            
-            // Second agent call for multi-agent workflow
-            const repairData = await callAgent("The deviation exceeds the 2.0 micron tolerance. What is the recommended repair procedure?", data.sessionId);
-            setRepairProcedure(repairData.text);
-          } else {
-            setDeviationStatus('normal');
-            setRepairProcedure("Tolerance acceptable. No repair needed.");
-          }
+          // Second agent call for multi-agent workflow
+          const repairData = await callAgent("The deviation exceeds the 2.0 micron tolerance. What is the recommended repair procedure?", data.sessionId);
+          setRepairProcedure(stripThinking(repairData.text));
         } else {
-          setAgentResponse("Error: " + data.details);
+          setDeviationStatus('normal');
+          setRepairProcedure("Tolerance acceptable. No repair needed.");
         }
-      } catch (e) {
-        setAgentResponse("Failed to connect to backend.");
+      } else {
+        setAgentResponse("Error: " + data.details);
       }
-      setIsListening(false);
-    } else {
-      setDeviationStatus('idle');
+    } catch (e) {
+      setAgentResponse("Failed to connect to backend.");
     }
+  };
+
+  const handleMicClick = () => {
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      return;
+    }
+
+    if (!('webkitSpeechRecognition' in window)) {
+      alert("Voice recognition is not supported in this browser. Please use Chrome.");
+      // Fallback for non-Chrome browsers
+      setTranscript("Checking UPPER_FLANGE deviation...");
+      processWorkflow("Check UPPER_FLANGE deviation");
+      return;
+    }
+
+    const SpeechRecognition = (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    
+    let finalTranscript = '';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setTranscript("Listening...");
+    };
+
+    recognition.onresult = (event: any) => {
+      let interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+      setTranscript(finalTranscript + interimTranscript);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      if (finalTranscript || transcript !== "Listening...") {
+        const textToProcess = finalTranscript || transcript;
+        processWorkflow(textToProcess);
+      }
+    };
+    
+    recognition.start();
+    recognitionRef.current = recognition;
   };
 
   return (
@@ -89,13 +143,20 @@ export default function Home() {
 
         <button 
           onClick={handleMicClick}
-          className={`mt-6 w-full py-4 rounded-full font-bold transition-all ${
+          className={`mt-6 w-full py-4 rounded-full font-bold transition-all flex items-center justify-center gap-2 ${
             isListening 
-            ? 'bg-red-500 hover:bg-red-600 shadow-[0_0_20px_rgba(239,68,68,0.5)]' 
-            : 'bg-blue-600 hover:bg-blue-700'
+            ? 'bg-red-500 hover:bg-red-600 shadow-[0_0_20px_rgba(239,68,68,0.5)] animate-pulse' 
+            : 'bg-blue-600 hover:bg-blue-700 shadow-[0_0_15px_rgba(37,99,235,0.4)]'
           }`}
         >
-          {isListening ? 'Stop Listening' : 'Run Diagnostics'}
+          {isListening ? (
+            <>
+              <div className="w-3 h-3 bg-white rounded-full animate-ping"></div>
+              Listening... Click to Stop
+            </>
+          ) : (
+            'Start Voice Diagnostics'
+          )}
         </button>
       </div>
 
