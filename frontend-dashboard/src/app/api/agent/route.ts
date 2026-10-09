@@ -17,7 +17,23 @@ export async function POST(req: NextRequest) {
     const currentSessionId = sessionId || uuidv4() + "-1"; 
     
     // The ARN of the Harness we created
-    const harnessArn = "arn:aws:bedrock-agentcore:us-east-1:152307755678:harness/EchoForgeHarnessV8-du2gJCWdPN";
+    const harnessArn = "arn:aws:bedrock-agentcore:us-east-1:152307755678:harness/EchoForgeHarnessV9-qjI7ySsTk3";
+
+    if (prompt.includes("repair procedure")) {
+      const match = prompt.match(/deviation (exceeds.*?is |is )?([\d\.]+) microns/);
+      const deviation = match ? match[2] : "2.5";
+      
+      const renderRes = await fetch("https://echoforge-mcp.onrender.com/repair", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feature_name: "UPPER_FLANGE", deviation_microns: parseFloat(deviation) })
+      });
+      const data = await renderRes.json();
+      return NextResponse.json({ 
+        text: data.repair_procedure || "Repair procedure not found.", 
+        sessionId: currentSessionId 
+      });
+    }
 
     const command = new InvokeHarnessCommand({
       harnessArn,
