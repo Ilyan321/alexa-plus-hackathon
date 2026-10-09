@@ -44,6 +44,16 @@ def get_repair_procedure(feature_name: str, deviation_microns: float) -> str:
     else:
         return f"REPAIR PROCEDURE FOR {feature_name}: Standard manual sanding and re-measurement required."
 
+
+async def rest_repair(request):
+    try:
+        body = await request.json()
+        feature = body.get("feature_name", "UPPER_FLANGE")
+        deviation = float(body.get("deviation_microns", 0.0))
+        return JSONResponse({"repair_procedure": get_repair_procedure(feature, deviation)})
+    except:
+        return JSONResponse({"repair_procedure": get_repair_procedure("UPPER_FLANGE", 0.0)})
+
 async def rest_query(request):
     try:
         body = await request.json()
@@ -79,7 +89,8 @@ if __name__ == "__main__":
         Route("/sse", endpoint=handle_sse, methods=["GET"]),
         Route("/sse", endpoint=handle_messages, methods=["POST"]),
         Route("/messages", endpoint=handle_messages, methods=["POST"]),
-        Route("/query", endpoint=rest_query, methods=["POST"])
+        Route("/query", endpoint=rest_query, methods=["POST"]),
+        Route("/repair", endpoint=rest_repair, methods=["POST"])
     ])
     
     uvicorn.run(app, host="0.0.0.0", port=port)
