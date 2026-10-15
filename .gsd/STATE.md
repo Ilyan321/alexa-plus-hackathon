@@ -5,18 +5,35 @@
 **Issue Tracker Reference:** [.gsd/ISSUES.md](file:///home/ilyan/amazon/.gsd/ISSUES.md)
 
 ## Current Status
-- **Phase 1 (The Local Edge):** Complete. MCP Server tested locally with `.DMO` parser.
-- **Phase 2 (Render Deployment):** Live on `https://echoforge-mcp.onrender.com`. Endpoints active for SSE and REST.
-- **Phase 3 (AWS Bedrock AgentCore Harness):** AgentCore Gateway (`echoforgegateway-gbu5h7w7f2`) and Harness V9 (`us.amazon.nova-pro-v1:0`) deployed. 
-  * *Alert:* Current local AWS CLI session for profile `lucian24` has expired. Operator needs to run `aws login`.
-- **Phase 4 (Frontend Dashboard):** Running locally on port 3000. Basic text & speech interaction working, but:
-  * 3D canvas is disabled in `page.tsx` (logged in Issue #1).
-  * Web Speech API has severe audio chunking / truncation (logged in Issue #2).
-  * Backend API route contains a temporary bypass for repair procedures (logged in Issue #3).
 
-## Active Roadmap & Immediate Focus
-1. Operator authentication refresh: Execute `aws login` to re-establish AWS CLI / SDK credentials for project `152307755678`.
-2. Fix API route architectural bypass so Bedrock AgentCore orchestrates both tools natively through the Gateway.
-3. Address Issue #2: Implement resilient voice intake pipeline with audio buffer / VAD.
-4. Address Issue #1: Full frontend redesign with high-fidelity industrial metrology UI + restoration of interactive 3D Digital Twin.
-5. Deploy frontend and backend to production AWS infrastructure.
+| Phase | Status | Notes |
+|---|---|---|
+| Phase 1 — Local Edge | ✅ Complete | MCP Server + .DMO parser |
+| Phase 2 — Render Deployment | ✅ Complete | Live at `https://echoforge-mcp.onrender.com` |
+| Phase 3 — AWS Bedrock AgentCore | ✅ Complete | Harness V9 + updated system prompt with explicit tool names |
+| Phase 4 — Frontend Dashboard | ✅ **Just shipped** | route.ts bypass removed, single AgentCore call, voice fixed, TTS added |
+| Phase 5 — Production Deploy | 🔲 Next | Deploy frontend to AWS (Amplify/CloudFront), record demo |
+
+## What Was Verified This Session (Empirical Evidence)
+
+1. **AWS CLI session** re-authenticated via `aws login --remote` for profile `lucian24`. `sts get-caller-identity` confirmed `152307755678`.
+2. **Harness V9 E2E test passed** — Nova Pro autonomously called `RenderServerTarget___queryDeviation`, received live `1.8 microns`, correctly classified as in-tolerance. No hallucination.
+3. **Harness system prompt updated** — Explicitly names both gateway tools so Nova Pro selects correctly. Status: `READY`.
+4. **route.ts rewritten** — Eliminated all client-side regex logic. Single `InvokeHarnessCommand`, typed stream collector, structured JSON response.
+5. **page.tsx rewritten** — Single `callAgent()` per prompt, multi-turn `sessionId` persistence, `continuous: false` + `en-US` speech recognition, `SpeechSynthesis` TTS output, deviation auto-parsed from Bedrock response text.
+6. **`next build` passed** — Zero TypeScript errors, zero warnings. 48kB main bundle.
+
+## DNS Fix (Persists Until Network Reconnect)
+`resolvectl dns wlo1 1.1.1.1 1.0.0.1` — set Cloudflare DNS on `wlo1`.
+If AWS CLI breaks again after reconnect, re-run: `sudo resolvectl dns wlo1 1.1.1.1 1.0.0.1`
+
+## Remaining Issues (Open)
+- **Issue #1**: Frontend design overhaul + 3D Digital Twin restoration (deferred — tracked in ISSUES.md)
+- **Issue #2**: Voice intake pipeline (partially fixed — `continuous:false`, `en-US`, proper error handling; full Amazon Transcribe upgrade still in backlog)
+- **Issue #3**: ✅ **CLOSED** — route.ts bypass eliminated
+
+## Next Session Starting Point
+1. Deploy frontend to AWS (Amplify or ECS+CloudFront)
+2. Set `AWS_PROFILE=lucian24` as a proper server-side env variable for production runtime
+3. Execute Issue #1: Industrial UI redesign + 3D Digital Twin
+4. Record 3-minute executive demo video
