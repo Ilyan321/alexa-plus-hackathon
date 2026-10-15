@@ -4,23 +4,28 @@ import { v4 as uuidv4 } from 'uuid';
 
 const HARNESS_ARN = 'arn:aws:bedrock-agentcore:us-east-1:152307755678:harness/EchoForgeHarnessV9-qjI7ySsTk3';
 
-const region = process.env.APP_AWS_REGION || process.env.AWS_REGION || 'us-east-1';
+function getClient() {
+  const region = process.env.APP_AWS_REGION || process.env.AWS_REGION || 'us-east-1';
+  const accessKeyId = process.env.APP_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.APP_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
 
-const credentials =
-  process.env.APP_AWS_ACCESS_KEY_ID && process.env.APP_AWS_SECRET_ACCESS_KEY
-    ? {
-        accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY,
-      }
-    : undefined;
+  if (accessKeyId && secretAccessKey) {
+    return new BedrockAgentCoreClient({
+      region,
+      credentials: {
+        accessKeyId: accessKeyId.trim(),
+        secretAccessKey: secretAccessKey.trim(),
+      },
+    });
+  }
 
-const client = new BedrockAgentCoreClient({
-  region,
-  ...(credentials ? { credentials } : {}),
-});
+  // Fallback to default credential provider chain (e.g. local AWS_PROFILE or IAM role)
+  return new BedrockAgentCoreClient({ region });
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const client = getClient();
     const body = await req.json();
     const { prompt, sessionId } = body;
 
