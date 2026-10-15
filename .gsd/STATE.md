@@ -1,18 +1,22 @@
 # EchoForge State & Memory
 
-**Last Updated:** 2026-10-09
+**Last Updated:** 2026-10-15  
+**Master Context Reference:** [.gsd/PROJECT_CONTEXT.md](file:///home/ilyan/amazon/.gsd/PROJECT_CONTEXT.md)  
+**Issue Tracker Reference:** [.gsd/ISSUES.md](file:///home/ilyan/amazon/.gsd/ISSUES.md)
 
 ## Current Status
-- **Phase 1 (The Local Edge):** Complete. MCP Server tested locally.
-- **Phase 2 (Render Deployment):** Complete. Deployed to `https://echoforge-mcp.onrender.com`.
-- **Phase 3 (AWS AgentCore Harness):** Complete! We successfully set up an AgentCore Gateway (`echoforgegateway-gbu5h7w7f2`) linked to the Render MCP. We then created `EchoForgeHarnessV8` utilizing `us.amazon.nova-pro-v1:0` to circumvent the "Anthropic model use case details missing" error. End-to-end API tests confirm the Harness connects to the Gateway, calling the MCP and retrieving live deviation data.
-- **Phase 4 (Frontend Dashboard):** Near Complete.
-  - Next.js 15+ frontend scaffolded at `/home/ilyan/amazon/frontend-dashboard`.
-  - Resolved `npm install` dependency conflicts (`react@19` vs `@react-three/fiber`) using `--legacy-peer-deps`.
-  - Next.js App Router API `POST /api/agent` successfully invokes the `EchoForgeHarnessV8` ARN via the `@aws-sdk/client-bedrock-agentcore`.
-  - `page.tsx` features a styled dashboard integrating dynamic `Three.js` scenes that color-shift based on real-time AWS AgentCore responses! Next.js Dev Server is running on `localhost:3000`.
+- **Phase 1 (The Local Edge):** Complete. MCP Server tested locally with `.DMO` parser.
+- **Phase 2 (Render Deployment):** Live on `https://echoforge-mcp.onrender.com`. Endpoints active for SSE and REST.
+- **Phase 3 (AWS Bedrock AgentCore Harness):** AgentCore Gateway (`echoforgegateway-gbu5h7w7f2`) and Harness V9 (`us.amazon.nova-pro-v1:0`) deployed. 
+  * *Alert:* Current local AWS CLI session for profile `lucian24` has expired. Operator needs to run `aws login`.
+- **Phase 4 (Frontend Dashboard):** Running locally on port 3000. Basic text & speech interaction working, but:
+  * 3D canvas is disabled in `page.tsx` (logged in Issue #1).
+  * Web Speech API has severe audio chunking / truncation (logged in Issue #2).
+  * Backend API route contains a temporary bypass for repair procedures (logged in Issue #3).
 
-## Next Session Starting Point
-1. Finalize and review the UI in the browser. 
-2. Record the demo video of voice interaction + 3D feedback for the Hackathon submission.
-3. Submit the hackathon project!
+## Active Roadmap & Immediate Focus
+1. Operator authentication refresh: Execute `aws login` to re-establish AWS CLI / SDK credentials for project `152307755678`.
+2. Fix API route architectural bypass so Bedrock AgentCore orchestrates both tools natively through the Gateway.
+3. Address Issue #2: Implement resilient voice intake pipeline with audio buffer / VAD.
+4. Address Issue #1: Full frontend redesign with high-fidelity industrial metrology UI + restoration of interactive 3D Digital Twin.
+5. Deploy frontend and backend to production AWS infrastructure.

@@ -1,0 +1,29 @@
+{
+  "harnessName": "EchoForgeHarnessV9",
+  "executionRoleArn": "arn:aws:iam::152307755678:role/EchoForgeHarnessRole",
+  "model": {
+    "bedrockModelConfig": {
+      "modelId": "us.amazon.nova-pro-v1:0",
+      "apiFormat": "converse_stream"
+    }
+  },
+  "systemPrompt": [
+    {
+      "text": "You are EchoForge, an industrial metrology assistant. You can retrieve real-time deviation metrics from the factory using your connected MCP tools."
+    }
+  ],
+  "tools": [
+    {
+      "type": "agentcore_gateway",
+      "name": "echoforge_mcp",
+      "config": {
+        "agentCoreGateway": {
+          "gatewayArn": "arn:aws:bedrock-agentcore:us-east-1:152307755678:gateway/echoforgegateway-gbu5h7w7f2"
+        }
+      }
+    }
+  ],
+  "maxIterations": 10,
+  "maxTokens": 4096,
+  "timeoutSeconds": 300
+}

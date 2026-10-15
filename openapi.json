@@ -1,0 +1,100 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "EchoForge Metrology REST API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://echoforge-mcp.onrender.com"
+    }
+  ],
+  "paths": {
+    "/query": {
+      "post": {
+        "operationId": "queryDeviation",
+        "summary": "Query DMO Deviation",
+        "description": "Reads the local .DMO legacy inspection file and returns the deviation for a specific feature.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "feature_name": {
+                    "type": "string",
+                    "description": "The name of the feature to check (e.g., 'UPPER_FLANGE')"
+                  }
+                },
+                "required": ["feature_name"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deviation_info": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/repair": {
+      "post": {
+        "operationId": "getRepairProcedure",
+        "summary": "Get Repair Procedure",
+        "description": "Gets the standard engineering repair procedure for a feature that is out of tolerance.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "feature_name": {
+                    "type": "string",
+                    "description": "The name of the feature out of tolerance"
+                  },
+                  "deviation_microns": {
+                    "type": "number",
+                    "description": "The measured deviation in microns"
+                  }
+                },
+                "required": ["feature_name", "deviation_microns"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "repair_procedure": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
