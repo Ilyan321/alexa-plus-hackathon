@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Assistant</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons for elegant, artistic icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#fffaf5',
+                            100: '#ffeed9',
+                            200: '#ffd6b0',
+                            300: '#ffb57a',
+                            400: '#ff8a3d',
+                            500: '#ff6b00', // Primary vibrant orange
+                            600: '#f05300',
+                            700: '#c73c00',
+                            800: '#9e3008',
+                            900: '#7e2a0b',
+                        }
+                    },
+                    animation: {
+                        'blob': 'blob 10s infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                        'fade-in': 'fadeIn 0.5s ease-out forwards',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(40px, -60px) scale(1.1)' },
+                            '66%': { transform: 'translate(-30px, 30px) scale(0.95)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-15px)' },
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #fffaf5; /* brand-50 */
+            overflow: hidden;
+        }
+
+        /* Artistic Ripple Effect for Recording State */
+        .recording-active {
+            position: relative;
+        }
+
+        .recording-active::before,
+        .recording-active::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 2px solid #ff6b00;
+            animation: ripple 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .recording-active::after {
+            animation-delay: 1.25s;
+        }
+
+        @keyframes ripple {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(2.2); opacity: 0; }
+        }
+
+        /* Smooth state transitions */
+        .view-transition {
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .hide-view {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.95) translateY(10px);
+            position: absolute;
+        }
+
+        .show-view {
+            opacity: 1;
+            pointer-events: auto;
+            transform: scale(1) translateY(0);
+            position: relative;
+        }
+
+        /* Input styling overrides */
+        input:focus {
+            outline: none;
+            box-shadow: 0 10px 40px -10px rgba(255, 107, 0, 0.2);
+        }
+    </style>
+</head>
+<body class="text-brand-900 font-sans h-screen w-screen flex flex-col items-center justify-center relative selection:bg-brand-300 selection:text-white">
+
+    <!-- Background Artistic Elements -->
+    <div class="absolute inset-0 overflow-hidden pointer-events-none opacity-40 z-0">
+        <div class="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-brand-200 mix-blend-multiply filter blur-3xl animate-blob"></div>
+        <div class="absolute top-[20%] right-[-15%] w-[45vw] h-[45vw] rounded-full bg-brand-300 mix-blend-multiply filter blur-3xl animate-blob" style="animation-delay: 2s;"></div>
+        <div class="absolute bottom-[-20%] left-[10%] w-[60vw] h-[60vw] rounded-full bg-brand-100 mix-blend-multiply filter blur-3xl animate-blob" style="animation-delay: 4s;"></div>
+    </div>
+
+    <!-- Main Content Container -->
+    <main class="z-10 w-full max-w-3xl px-6 flex flex-col items-center justify-center h-full relative text-center">
+        
+        <!-- Text Display / Transcript Area -->
+        <div class="min-h-[120px] mb-12 flex flex-col justify-end items-center w-full">
+            <h1 id="transcript-display" class="text-3xl sm:text-4xl md:text-5xl font-light text-brand-800 leading-tight transition-all duration-300">
+                I'm listening.
+            </h1>
+            <p id="transcript-status" class="text-brand-400 mt-4 text-sm font-medium tracking-wide uppercase opacity-0 transition-opacity duration-300">
+                Recording...
+            </p>
+        </div>
+
+        <!-- Interactive Core (Voice vs Text) -->
+        <div class="relative w-full flex justify-center items-center mt-8">
+            
+            <!-- Voice View -->
+            <div id="voice-view" class="view-transition show-view flex flex-col items-center justify-center">
+                <button id="mic-btn" class="group relative w-32 h-32 md:w-40 md:h-40 rounded-full bg-brand-500 hover:bg-brand-400 text-white flex items-center justify-center shadow-[0_20px_50px_-12px_rgba(255,107,0,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 animate-float cursor-pointer">
+                    <!-- Icon morphs smoothly -->
+                    <i id="mic-icon" class="ph ph-microphone text-5xl md:text-6xl drop-shadow-md transition-transform duration-300 group-hover:scale-110"></i>
+                </button>
+            </div>
+
+            <!-- Text Input View -->
+            <div id="text-view" class="view-transition hide-view w-full max-w-lg">
+                <form id="text-form" class="relative w-full animate-fadeIn">
+                    <input type="text" id="text-input" placeholder="Type your message..." 
+                        class="w-full bg-white/80 backdrop-blur-md border border-brand-200 text-brand-900 text-lg px-8 py-5 rounded-full shadow-[0_10px_30px_-10px_rgba(255,107,0,0.15)] transition-all duration-300 placeholder:text-brand-300">
+                    <button type="submit" class="absolute right-3 top-1/2 -translate-y-1/2 w-12 h-12 bg-brand-500 hover:bg-brand-600 text-white rounded-full flex items-center justify-center transition-transform hover:scale-105 active:scale-95 shadow-md">
+                        <i class="ph ph-paper-plane-tilt text-2xl"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Floating Mode Toggle -->
+    <div class="absolute bottom-8 right-8 md:bottom-12 md:right-12 z-20">
+        <button id="mode-toggle-btn" class="w-14 h-14 bg-white/60 backdrop-blur-md border border-brand-200 text-brand-500 hover:text-brand-700 hover:bg-white rounded-full flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(255,107,0,0.2)] transition-all duration-300 hover:-translate-y-1 group" aria-label="Toggle Input Mode">
+            <i id="toggle-icon" class="ph ph-keyboard text-2xl group-hover:rotate-12 transition-transform"></i>
+        </button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // UI Elements
+            const micBtn = document.getElementById('mic-btn');
+            const micIcon = document.getElementById('mic-icon');
+            const transcriptDisplay = document.getElementById('transcript-display');
+            const transcriptStatus = document.getElementById('transcript-status');
+            const modeToggleBtn = document.getElementById('mode-toggle-btn');
+            const toggleIcon = document.getElementById('toggle-icon');
+            
+            const voiceView = document.getElementById('voice-view');
+            const textView = document.getElementById('text-view');
+            const textInput = document.getElementById('text-input');
+            const textForm = document.getElementById('text-form');
+
+            // State
+            let isRecording = false;
+            let isTextMode = false;
+            let finalTranscript = '';
+
+            // Initialize Speech Recognition
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            let recognition = null;
+
+            if (SpeechRecognition) {
+                recognition = new SpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'en-US';
+
+                recognition.onstart = () => {
+                    isRecording = true;
+                    micBtn.classList.add('recording-active');
+                    micBtn.classList.remove('animate-float');
+                    micIcon.classList.remove('ph-microphone');
+                    micIcon.classList.add('ph-waveform'); // Change icon while recording
+                    transcriptStatus.style.opacity = '1';
+                    transcriptDisplay.innerText = 'Listening...';
+                    transcriptDisplay.classList.add('opacity-70');
+                };
+
+                recognition.onresult = (event) => {
+                    let interimTranscript = '';
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            finalTranscript += event.results[i][0].transcript + ' ';
+                        } else {
+                            interimTranscript += event.results[i][0].transcript;
+                        }
+                    }
+                    
+                    // Display what is currently being said
+                    const displayText = interimTranscript || finalTranscript;
+                    if(displayText.trim() !== '') {
+                        transcriptDisplay.innerText = displayText;
+                    }
+                };
+
+                recognition.onend = () => {
+                    stopRecordingUI();
+                    if(finalTranscript.trim() === '') {
+                        transcriptDisplay.innerText = "I didn't quite catch that.";
+                        setTimeout(() => {
+                            if(!isRecording && !isTextMode) {
+                                transcriptDisplay.innerText = "What's on your mind?";
+                            }
+                        }, 3000);
+                    } else {
+                        // Here you would normally send the 'finalTranscript' to your backend
+                        transcriptDisplay.innerText = finalTranscript;
+                    }
+                };
+
+                recognition.onerror = (event) => {
+                    console.error("Speech recognition error", event.error);
+                    stopRecordingUI();
+                    transcriptDisplay.innerText = "Microphone access denied or error occurred.";
+                };
+            } else {
+                transcriptDisplay.innerText = "Speech recognition not supported in this browser.";
+            }
+
+            function stopRecordingUI() {
+                isRecording = false;
+                micBtn.classList.remove('recording-active');
+                micBtn.classList.add('animate-float');
+                micIcon.classList.remove('ph-waveform');
+                micIcon.classList.add('ph-microphone');
+                transcriptStatus.style.opacity = '0';
+                transcriptDisplay.classList.remove('opacity-70');
+            }
+
+            // Mic Button Click Handler
+            micBtn.addEventListener('click', () => {
+                if(!recognition) return;
+                
+                if (isRecording) {
+                    recognition.stop();
+                } else {
+                    finalTranscript = '';
+                    recognition.start();
+                }
+            });
+
+            // Toggle Mode Handler
+            modeToggleBtn.addEventListener('click', () => {
+                isTextMode = !isTextMode;
+                
+                if (isTextMode) {
+                    // Switch to Text Mode
+                    if(isRecording && recognition) recognition.stop();
+                    
+                    voiceView.classList.replace('show-view', 'hide-view');
+                    textView.classList.replace('hide-view', 'show-view');
+                    
+                    toggleIcon.classList.remove('ph-keyboard');
+                    toggleIcon.classList.add('ph-microphone-stage');
+                    
+                    transcriptDisplay.innerText = "How can I help you?";
+                    
+                    // Small delay to allow transition before focusing
+                    setTimeout(() => textInput.focus(), 50); 
+                } else {
+                    // Switch to Voice Mode
+                    textView.classList.replace('show-view', 'hide-view');
+                    voiceView.classList.replace('hide-view', 'show-view');
+                    
+                    toggleIcon.classList.remove('ph-microphone-stage');
+                    toggleIcon.classList.add('ph-keyboard');
+                    
+                    transcriptDisplay.innerText = "What's on your mind?";
+                }
+            });
+
+            // Text Form Submit Handler
+            textForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const text = textInput.value.trim();
+                if(text) {
+                    transcriptDisplay.innerText = text;
+                    textInput.value = '';
+                    // Here you would send the text to your backend
+                }
+            });
+        });
+    </script>
+</body>
+</html>

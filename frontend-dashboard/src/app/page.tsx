@@ -1,25 +1,19 @@
 'use client';
+
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
-  MicrophoneIcon,
-  StopIcon,
-  PaperAirplaneIcon,
-  CpuChipIcon,
-  WrenchScrewdriverIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-} from '@heroicons/react/24/solid';
+  Mic,
+  AudioWaveform,
+  Keyboard,
+  Send,
+  Sparkles,
+  AlertTriangle,
+  CheckCircle2,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 
-type Agent = 'user' | 'system' | 'engineering';
-type StatusType = 'normal' | 'error' | 'idle';
-
-interface Message {
-  role: string;
-  content: string;
-  agent: Agent;
-  type?: StatusType;
-}
+type StatusType = 'idle' | 'listening' | 'processing' | 'normal' | 'error';
 
 // Strip <thinking>...</thinking> blocks that Nova Pro sometimes emits
 const stripThinking = (text: string) =>
@@ -31,185 +25,265 @@ const parseDeviation = (text: string): number | null => {
   return m ? parseFloat(m[1]) : null;
 };
 
-export default function Home() {
-  const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [textInput, setTextInput] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [deviationStatus, setDeviationStatus] = useState<StatusType>('idle');
+export default function VoiceAssistantPage() {
+  // Mode states
+  const [isTextMode, setIsTextMode] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(true);
+
+  // Content states
+  const [displayPrompt, setDisplayPrompt] = useState("I'm listening.");
+  const [subStatus, setSubStatus] = useState<string | null>(null);
+  const [agentResponse, setAgentResponse] = useState<string | null>(null);
+  const [deviationStatus, setDeviationStatus] = useState<StatusType>('idle');
+  const [textInput, setTextInput] = useState('');
   const [sessionId, setSessionId] = useState<string>('');
 
+  // Voice engine refs
   const recognitionRef = useRef<any>(null);
-  const finalTranscriptRef = useRef('');
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const isRecordingIntentRef = useRef(false);
+  const accumulatedTranscriptRef = useRef('');
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, transcript]);
-
-  const callAgent = useCallback(async (prompt: string): Promise<{ text: string; sessionId: string }> => {
-    const res = await fetch('/api/agent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, sessionId }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.details || `HTTP ${res.status}`);
-    }
-    return res.json();
-  }, [sessionId]);
-
-  const processWorkflow = useCallback(async (userPrompt: string) => {
-    if (!userPrompt.trim() || isProcessing) return;
-
-    setIsProcessing(true);
-    setMessages(prev => [...prev, { role: 'You', content: userPrompt, agent: 'user' }]);
-    setDeviationStatus('idle');
-
-    // Add a "thinking" placeholder from the system agent
-    setMessages(prev => [
-      ...prev,
-      { role: 'EchoForge OS', content: 'Querying factory sensors via AWS AgentCore...', agent: 'system', type: 'idle' },
-    ]);
-
-    try {
-      // Single call — Bedrock AgentCore orchestrates queryDeviation + getRepairProcedure autonomously
-      const data = await callAgent(userPrompt);
-      const cleanText = stripThinking(data.text);
-
-      // Persist session for multi-turn continuity
-      if (data.sessionId) setSessionId(data.sessionId);
-
-      // Derive status from the response content
-      const deviation = parseDeviation(cleanText);
-      let newStatus: StatusType = 'idle';
-      if (deviation !== null) {
-        newStatus = deviation > 2.0 ? 'error' : 'normal';
-      } else if (/no repair|within tolerance|acceptable/i.test(cleanText)) {
-        newStatus = 'normal';
-      } else if (/out of tolerance|repair procedure|re-milling|recalibrate/i.test(cleanText)) {
-        newStatus = 'error';
-      }
-      setDeviationStatus(newStatus);
-
-      // Replace the placeholder with the real response
-      setMessages(prev => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: 'EchoForge OS',
-          content: cleanText,
-          agent: newStatus === 'error' ? 'engineering' : 'system',
-          type: newStatus,
-        };
-        return updated;
+  // Call the Bedrock AgentCore backend
+  const callAgent = useCallback(
+    async (prompt: string): Promise<{ text: string; sessionId: string }> => {
+      const res = await fetch('/api/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, sessionId }),
       });
-
-      // Speak the response aloud
-      if ('speechSynthesis' in window && cleanText) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        window.speechSynthesis.speak(utterance);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.details || `HTTP ${res.status}`);
       }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Unknown error';
-      setMessages(prev => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: 'System Error',
-          content: `Failed to reach AgentCore: ${msg}`,
-          agent: 'engineering',
-          type: 'error',
-        };
-        return updated;
-      });
-      setDeviationStatus('error');
+      return res.json();
+    },
+    [sessionId]
+  );
+
+  // Speak agent response aloud
+  const speakResponse = useCallback(
+    (text: string) => {
+      if (!ttsEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const clean = text.replace(/[*#_`]/g, '');
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.lang = 'en-US';
+      window.speechSynthesis.speak(utterance);
+    },
+    [ttsEnabled]
+  );
+
+  // Workflow processing
+  const processWorkflow = useCallback(
+    async (userPrompt: string) => {
+      const prompt = userPrompt.trim();
+      if (!prompt || isProcessing) return;
+
+      setIsProcessing(true);
+      setSubStatus('Interrogating factory sensors via AWS AgentCore...');
+      setDisplayPrompt(`"${prompt}"`);
+
+      try {
+        const data = await callAgent(prompt);
+        const cleanText = stripThinking(data.text);
+
+        if (data.sessionId) {
+          setSessionId(data.sessionId);
+        }
+
+        // Determine status
+        const devVal = parseDeviation(cleanText);
+        let newStatus: StatusType = 'normal';
+        if (devVal !== null) {
+          newStatus = devVal > 2.0 ? 'error' : 'normal';
+        } else if (/out of tolerance|repair procedure|re-milling|recalibrate/i.test(cleanText)) {
+          newStatus = 'error';
+        }
+
+        setDeviationStatus(newStatus);
+        setAgentResponse(cleanText);
+        setSubStatus(
+          newStatus === 'error'
+            ? '⚠️ Deviation Exceeded (Repair Required)'
+            : '✓ Within Tolerance (Nominal)'
+        );
+
+        speakResponse(cleanText);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        setDeviationStatus('error');
+        setAgentResponse(`Error connecting to AgentCore: ${msg}`);
+        setSubStatus('Connection Error');
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [callAgent, isProcessing, speakResponse]
+  );
+
+  // Stop recording and send accumulated speech
+  const stopAndCommitSpeech = useCallback(() => {
+    isRecordingIntentRef.current = false;
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
     }
 
-    setIsProcessing(false);
-  }, [callAgent, isProcessing]);
-
-  const stopListening = useCallback(() => {
-    recognitionRef.current?.stop();
-    setIsListening(false);
-  }, []);
-
-  const toggleListen = useCallback(() => {
-    if (isListening) {
-      stopListening();
-      return;
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
     }
+
+    setIsRecording(false);
+    const finalCommit = accumulatedTranscriptRef.current.trim();
+    if (finalCommit) {
+      processWorkflow(finalCommit);
+    } else {
+      setDisplayPrompt("I'm listening.");
+      setSubStatus(null);
+    }
+  }, [processWorkflow]);
+
+  // Start speech recognition engine with resilient auto-restart
+  const startRecording = useCallback(() => {
     if (isProcessing) return;
+    if (typeof window === 'undefined') return;
 
-    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      alert('Voice recognition is not supported in this browser. Please use Chrome or Edge.');
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert('Speech recognition is not supported in this browser. Please use Google Chrome or Edge.');
       return;
     }
 
-    try {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-
-      // continuous:false = natural sentence-based capture (stops when user pauses)
-      // interimResults:true = show live transcription while speaking
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-      recognition.maxAlternatives = 1;
-
-      finalTranscriptRef.current = '';
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        setTranscript('');
-      };
-
-      recognition.onresult = (event: any) => {
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const result = event.results[i];
-          if (result.isFinal) {
-            finalTranscriptRef.current += result[0].transcript + ' ';
-          } else {
-            interim += result[0].transcript;
-          }
-        }
-        setTranscript(finalTranscriptRef.current + interim);
-      };
-
-      recognition.onerror = (e: any) => {
-        // 'no-speech' is benign — user just didn't speak
-        if (e.error !== 'no-speech') {
-          console.error('[Speech]', e.error);
-        }
-        setIsListening(false);
-        setTranscript('');
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-        const finalText = finalTranscriptRef.current.trim();
-        setTranscript('');
-        if (finalText) {
-          processWorkflow(finalText);
-        }
-      };
-
-      recognition.start();
-      recognitionRef.current = recognition;
-    } catch (e) {
-      console.error('[Speech init]', e);
-      setIsListening(false);
+    // Cancel any active speech synthesis so it doesn't transcribe itself
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
     }
-  }, [isListening, isProcessing, stopListening, processWorkflow]);
 
-  const handleManualSubmit = (e: React.FormEvent) => {
+    accumulatedTranscriptRef.current = '';
+    isRecordingIntentRef.current = true;
+    setIsRecording(true);
+    setDisplayPrompt('Listening...');
+    setSubStatus('Recording... (speak your command)');
+    setAgentResponse(null);
+    setDeviationStatus('listening');
+
+    // Create a new instance
+    const rec = new SpeechRecognition();
+    rec.continuous = false; // Chrome handles single utterances much more reliably
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+    rec.maxAlternatives = 1;
+
+    rec.onresult = (event: any) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          accumulatedTranscriptRef.current += event.results[i][0].transcript + ' ';
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+
+      const liveText = (accumulatedTranscriptRef.current + interim).trim();
+      if (liveText) {
+        setDisplayPrompt(liveText);
+      }
+
+      // Reset the silence timer: wait 2.5 seconds of quiet before auto-submitting
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+      silenceTimerRef.current = setTimeout(() => {
+        if (isRecordingIntentRef.current && (accumulatedTranscriptRef.current + interim).trim()) {
+          stopAndCommitSpeech();
+        }
+      }, 2500);
+    };
+
+    rec.onerror = (event: any) => {
+      // 'no-speech' is triggered when Chrome detects silence
+      if (event.error === 'no-speech') {
+        // If the user hasn't said anything yet or is still thinking, keep listening if intent is active
+        return;
+      }
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        isRecordingIntentRef.current = false;
+        setIsRecording(false);
+        setSubStatus('Microphone access denied');
+        setDisplayPrompt('Microphone permission required');
+      }
+    };
+
+    rec.onend = () => {
+      // Chrome automatically triggers onend after pauses.
+      // If the user hasn't explicitly clicked stop and hasn't timed out, immediately resume listening!
+      if (isRecordingIntentRef.current && !isProcessing) {
+        try {
+          rec.start();
+        } catch {
+          // If restart fails, create fresh instance
+          setIsRecording(false);
+        }
+      } else {
+        setIsRecording(false);
+      }
+    };
+
+    try {
+      rec.start();
+      recognitionRef.current = rec;
+    } catch (e) {
+      console.error('Failed to start speech recognition:', e);
+      setIsRecording(false);
+    }
+  }, [isProcessing, stopAndCommitSpeech]);
+
+  // Mic toggle handler
+  const toggleListening = () => {
+    if (isRecording) {
+      stopAndCommitSpeech();
+    } else {
+      startRecording();
+    }
+  };
+
+  // Switch between voice and text modes
+  const handleToggleMode = () => {
+    if (isRecording) {
+      isRecordingIntentRef.current = false;
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+      setIsRecording(false);
+    }
+
+    const nextMode = !isTextMode;
+    setIsTextMode(nextMode);
+
+    if (nextMode) {
+      setDisplayPrompt('How can I help you?');
+      setSubStatus('Type a factory query below');
+      setTimeout(() => textInputRef.current?.focus(), 80);
+    } else {
+      setDisplayPrompt("I'm listening.");
+      setSubStatus(null);
+    }
+  };
+
+  // Form submission for text mode
+  const handleTextSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = textInput.trim();
     if (text) {
@@ -218,223 +292,239 @@ export default function Home() {
     }
   };
 
-  return (
-    <div className="flex h-screen bg-[#050505] text-white font-sans overflow-hidden relative">
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isRecordingIntentRef.current = false;
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
-      {/* Background gradient — shifts color based on deviation status */}
-      <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/30 via-[#050505] to-[#050505] opacity-60" />
+  return (
+    <div className="text-brand-900 font-sans h-screen w-screen flex flex-col items-center justify-center relative selection:bg-brand-300 selection:text-white bg-brand-50 overflow-hidden">
+      {/* Dynamic Background Tint on Tolerance Status */}
+      <div
+        className={`absolute inset-0 pointer-events-none transition-colors duration-1000 z-0 ${
+          deviationStatus === 'error'
+            ? 'bg-red-500/10'
+            : deviationStatus === 'normal'
+            ? 'bg-emerald-500/10'
+            : 'bg-transparent'
+        }`}
+      />
+
+      {/* Background Artistic Blobs from assistant_interface.html */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-40 z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-brand-200 mix-blend-multiply filter blur-3xl animate-blob" />
         <div
-          className={`absolute inset-0 transition-colors duration-1000 ${
-            deviationStatus === 'error'
-              ? 'bg-red-900/20'
-              : deviationStatus === 'normal'
-              ? 'bg-emerald-900/10'
-              : 'bg-transparent'
-          }`}
+          className="absolute top-[20%] right-[-15%] w-[45vw] h-[45vw] rounded-full bg-brand-300 mix-blend-multiply filter blur-3xl animate-blob"
+          style={{ animationDelay: '2s' }}
+        />
+        <div
+          className="absolute bottom-[-20%] left-[10%] w-[60vw] h-[60vw] rounded-full bg-brand-100 mix-blend-multiply filter blur-3xl animate-blob"
+          style={{ animationDelay: '4s' }}
         />
       </div>
 
-      {/* Main panel */}
-      <div className="relative z-10 flex flex-col w-full max-w-4xl h-[92vh] mx-auto my-auto bg-black/60 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
-
-        {/* Header */}
-        <div className="px-8 py-5 border-b border-white/10 bg-gradient-to-r from-blue-500/10 to-emerald-500/10 flex items-center justify-between shrink-0">
+      {/* Top Header Badge */}
+      <header className="absolute top-6 left-6 right-6 flex items-center justify-between z-20">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-md">
+            <Sparkles className="w-4 h-4" />
+          </div>
           <div>
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400 tracking-tight">
+            <h2 className="text-base font-semibold tracking-tight text-brand-900 leading-none">
               EchoForge OS
-            </h1>
-            <p className="text-white/40 text-xs mt-0.5 uppercase tracking-widest font-medium">
-              AWS AgentCore · Nova Pro · Live Factory Data
+            </h2>
+            <p className="text-[11px] font-medium tracking-wider uppercase text-brand-400 mt-0.5">
+              AWS Bedrock AgentCore · Live Factory Edge
             </p>
           </div>
-          <div className="flex gap-3 items-center bg-white/5 px-4 py-2 rounded-full border border-white/10">
-            <span className="text-xs font-semibold uppercase tracking-widest text-white/40">Status</span>
-            <span className="relative flex h-2.5 w-2.5">
+        </div>
+
+        {/* Status pill & TTS toggle */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setTtsEnabled(!ttsEnabled)}
+            className="px-3 py-1.5 rounded-full bg-white/70 backdrop-blur-md border border-brand-200 text-brand-700 text-xs font-medium hover:bg-white transition-all flex items-center gap-1.5 shadow-sm"
+            title={ttsEnabled ? 'Mute voice response' : 'Enable voice response'}
+          >
+            {ttsEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{ttsEnabled ? 'Voice On' : 'Muted'}</span>
+          </button>
+
+          <div className="px-3.5 py-1.5 rounded-full bg-white/70 backdrop-blur-md border border-brand-200 text-xs font-medium text-brand-700 flex items-center gap-2 shadow-sm">
+            <span className="relative flex h-2 w-2">
               <span
                 className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
                   deviationStatus === 'error'
                     ? 'bg-red-400'
                     : deviationStatus === 'normal'
                     ? 'bg-emerald-400'
-                    : 'bg-blue-400'
+                    : isRecording
+                    ? 'bg-brand-500'
+                    : 'bg-brand-400'
                 }`}
               />
               <span
-                className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                className={`relative inline-flex rounded-full h-2 w-2 ${
                   deviationStatus === 'error'
                     ? 'bg-red-500'
                     : deviationStatus === 'normal'
                     ? 'bg-emerald-500'
-                    : 'bg-blue-500'
+                    : isRecording
+                    ? 'bg-brand-500'
+                    : 'bg-brand-400'
                 }`}
               />
             </span>
+            <span className="capitalize">
+              {isProcessing
+                ? 'Analyzing...'
+                : isRecording
+                ? 'Listening'
+                : deviationStatus === 'error'
+                ? 'Out of Tolerance'
+                : deviationStatus === 'normal'
+                ? 'In Tolerance'
+                : 'Ready'}
+            </span>
           </div>
         </div>
+      </header>
 
-        {/* Messages */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 space-y-6 scroll-smooth">
-          {messages.length === 0 && !transcript && (
-            <div className="flex flex-col items-center justify-center h-full text-center space-y-5 text-white/20">
-              <CpuChipIcon className="w-20 h-20" />
-              <p className="text-lg font-light leading-relaxed">
-                Awaiting operator command.
-                <br />
-                Tap the mic or type to interrogate factory sensors.
-              </p>
-            </div>
-          )}
+      {/* Main Content Container */}
+      <main className="z-10 w-full max-w-3xl px-6 flex flex-col items-center justify-center h-full relative text-center">
+        {/* Text Display / Transcript Area */}
+        <div className="min-h-[140px] mb-8 flex flex-col justify-end items-center w-full px-4">
+          <h1
+            id="transcript-display"
+            className={`text-3xl sm:text-4xl md:text-5xl font-light text-brand-800 leading-tight transition-all duration-300 max-w-2xl ${
+              isRecording ? 'opacity-80 scale-102' : 'opacity-100 scale-100'
+            }`}
+          >
+            {displayPrompt}
+          </h1>
 
-          <AnimatePresence>
-            {messages.map((msg, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 12, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.25 }}
-                className={`flex flex-col ${msg.agent === 'user' ? 'items-end' : 'items-start'}`}
-              >
-                <div
-                  className={`flex items-center gap-1.5 text-xs uppercase tracking-widest mb-1.5 font-semibold ${
-                    msg.agent === 'user'
-                      ? 'text-blue-400'
-                      : msg.type === 'error'
-                      ? 'text-red-400'
-                      : 'text-emerald-400'
-                  }`}
-                >
-                  {msg.agent === 'system' && <CheckCircleIcon className="w-3.5 h-3.5" />}
-                  {msg.agent === 'engineering' && <WrenchScrewdriverIcon className="w-3.5 h-3.5" />}
-                  {msg.role}
-                </div>
-                <div
-                  className={`p-4 rounded-2xl max-w-[88%] text-sm leading-relaxed shadow-lg border whitespace-pre-wrap ${
-                    msg.agent === 'user'
-                      ? 'bg-blue-600/20 border-blue-500/30 text-blue-50 rounded-br-sm'
-                      : msg.type === 'error'
-                      ? 'bg-red-900/30 border-red-500/40 text-red-100 rounded-bl-sm'
-                      : msg.type === 'normal'
-                      ? 'bg-emerald-900/20 border-emerald-500/30 text-emerald-100 rounded-bl-sm'
-                      : 'bg-white/5 border-white/10 text-white/70 rounded-bl-sm'
-                  }`}
-                >
-                  {msg.content}
-                </div>
-              </motion.div>
-            ))}
-
-            {/* Live transcription indicator */}
-            {(isListening || transcript) && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col items-end"
-              >
-                <div className="text-xs uppercase tracking-widest mb-1.5 font-semibold text-blue-400">
-                  You (Speaking…)
-                </div>
-                <div className="p-4 rounded-2xl max-w-[88%] text-sm bg-blue-600/20 border border-blue-500/40 text-blue-100 rounded-br-sm shadow-[0_0_20px_rgba(59,130,246,0.25)]">
-                  {transcript || (
-                    <div className="flex gap-1 items-center h-5">
-                      {[0, 0.15, 0.3].map((delay, i) => (
-                        <motion.div
-                          key={i}
-                          animate={{ height: [4, 16, 4] }}
-                          transition={{ repeat: Infinity, duration: 0.9, delay }}
-                          className="w-1 bg-blue-400 rounded-full"
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-
-            {/* Processing spinner */}
-            {isProcessing && !isListening && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex gap-2.5 items-center text-white/40 text-xs p-1"
-              >
-                <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-                AgentCore processing…
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Subtitle / Live Status */}
+          <p
+            id="transcript-status"
+            className={`mt-4 text-xs sm:text-sm font-semibold tracking-wider uppercase transition-all duration-300 ${
+              subStatus ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+            } ${
+              deviationStatus === 'error'
+                ? 'text-red-600'
+                : deviationStatus === 'normal'
+                ? 'text-emerald-600'
+                : 'text-brand-400'
+            }`}
+          >
+            {subStatus || 'Ready'}
+          </p>
         </div>
 
-        {/* Input bar */}
-        <div className="p-5 border-t border-white/10 bg-black/50 backdrop-blur-md shrink-0">
-          <form onSubmit={handleManualSubmit} className="flex gap-3 items-center">
-            {/* Mic button */}
-            <div className="relative shrink-0">
-              {isListening && (
-                <motion.div
-                  animate={{ scale: [1, 1.6, 1], opacity: [0.4, 0.1, 0.4] }}
-                  transition={{ repeat: Infinity, duration: 1.5 }}
-                  className="absolute inset-0 bg-red-500 rounded-full"
-                />
+        {/* Agent Response Card (if returned) */}
+        {agentResponse && !isRecording && (
+          <div
+            className={`mb-8 max-w-xl w-full p-5 rounded-3xl backdrop-blur-xl border shadow-xl text-left transition-all duration-500 animate-fadeIn ${
+              deviationStatus === 'error'
+                ? 'bg-red-50/90 border-red-200 text-red-950 shadow-red-500/10'
+                : 'bg-white/80 border-brand-200 text-brand-950 shadow-brand-500/10'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              {deviationStatus === 'error' ? (
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               )}
+              <span className="text-xs font-bold uppercase tracking-wider text-brand-600">
+                AgentCore Intelligence
+              </span>
+            </div>
+            <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap text-brand-900 font-normal">
+              {agentResponse}
+            </p>
+          </div>
+        )}
+
+        {/* Interactive Core: Voice vs Text */}
+        <div className="relative w-full flex justify-center items-center mt-2">
+          {/* Voice View */}
+          {!isTextMode ? (
+            <div className="view-transition flex flex-col items-center justify-center">
               <button
                 type="button"
-                onClick={toggleListen}
+                id="mic-btn"
+                onClick={toggleListening}
                 disabled={isProcessing}
-                title={isListening ? 'Stop listening' : 'Start voice input'}
-                className={`relative z-10 p-3.5 rounded-full transition-all duration-200 ${
-                  isListening
-                    ? 'bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.5)]'
-                    : 'bg-white/10 hover:bg-white/20 text-white/60 hover:text-white'
-                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                className={`group relative w-32 h-32 md:w-40 md:h-40 rounded-full bg-brand-500 hover:bg-brand-400 text-white flex items-center justify-center shadow-[0_20px_50px_-12px_rgba(255,107,0,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isRecording ? 'recording-active' : 'animate-float'
+                }`}
+                aria-label={isRecording ? 'Stop listening' : 'Start listening'}
               >
-                {isListening ? <StopIcon className="w-5 h-5" /> : <MicrophoneIcon className="w-5 h-5" />}
+                {isRecording ? (
+                  <AudioWaveform className="w-16 h-16 md:w-20 md:h-20 drop-shadow-md transition-transform duration-300 animate-pulse" />
+                ) : (
+                  <Mic className="w-14 h-14 md:w-16 md:h-16 drop-shadow-md transition-transform duration-300 group-hover:scale-110" />
+                )}
               </button>
+
+              <p className="text-xs font-medium text-brand-400 mt-4 tracking-wide uppercase">
+                {isRecording ? 'Tap to submit early' : 'Tap to speak'}
+              </p>
             </div>
-
-            <input
-              type="text"
-              value={textInput}
-              onChange={e => setTextInput(e.target.value)}
-              placeholder={
-                isListening
-                  ? 'Listening… speak your command'
-                  : isProcessing
-                  ? 'Processing…'
-                  : 'e.g. What is the status of the UPPER_FLANGE?'
-              }
-              disabled={isListening || isProcessing}
-              className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-3.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all disabled:opacity-40"
-            />
-
-            <button
-              type="submit"
-              disabled={!textInput.trim() || isProcessing}
-              className="shrink-0 p-3.5 bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 text-white disabled:text-white/20 rounded-full transition-all"
-            >
-              <PaperAirplaneIcon className="w-5 h-5" />
-            </button>
-          </form>
+          ) : (
+            /* Text Input View */
+            <div className="view-transition w-full max-w-lg">
+              <form onSubmit={handleTextSubmit} className="relative w-full animate-fadeIn">
+                <input
+                  ref={textInputRef}
+                  type="text"
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder="e.g. Check UPPER_FLANGE deviation and repair procedure"
+                  disabled={isProcessing}
+                  className="w-full bg-white/90 backdrop-blur-md border border-brand-200 text-brand-900 text-base sm:text-lg px-8 py-5 pr-16 rounded-full shadow-[0_10px_30px_-10px_rgba(255,107,0,0.15)] transition-all duration-300 placeholder:text-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                />
+                <button
+                  type="submit"
+                  disabled={!textInput.trim() || isProcessing}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-12 h-12 bg-brand-500 hover:bg-brand-600 disabled:bg-brand-300 text-white rounded-full flex items-center justify-center transition-transform hover:scale-105 active:scale-95 shadow-md disabled:cursor-not-allowed"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </form>
+            </div>
+          )}
         </div>
-      </div>
+      </main>
 
-      {/* Critical deviation alert banner */}
-      <AnimatePresence>
-        {deviationStatus === 'error' && (
-          <motion.div
-            initial={{ opacity: 0, y: -40 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -40 }}
-            className="absolute top-6 left-1/2 -translate-x-1/2 z-20 bg-red-950/90 backdrop-blur-xl border border-red-500/50 px-7 py-3.5 rounded-full shadow-[0_0_40px_rgba(239,68,68,0.35)] flex items-center gap-3"
-          >
-            <ExclamationTriangleIcon className="w-5 h-5 text-red-400 shrink-0" />
-            <span className="text-red-100 font-semibold tracking-wider uppercase text-sm">
-              Critical Deviation — Repair Required
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Floating Mode Toggle (Voice <-> Keyboard) */}
+      <div className="absolute bottom-8 right-8 md:bottom-12 md:right-12 z-20">
+        <button
+          type="button"
+          onClick={handleToggleMode}
+          className="w-14 h-14 bg-white/70 backdrop-blur-md border border-brand-200 text-brand-500 hover:text-brand-700 hover:bg-white rounded-full flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(255,107,0,0.2)] transition-all duration-300 hover:-translate-y-1 group"
+          aria-label="Toggle Input Mode"
+          title={isTextMode ? 'Switch to Voice Input' : 'Switch to Keyboard Input'}
+        >
+          {isTextMode ? (
+            <Mic className="w-6 h-6 group-hover:scale-110 transition-transform" />
+          ) : (
+            <Keyboard className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+          )}
+        </button>
+      </div>
     </div>
   );
 }

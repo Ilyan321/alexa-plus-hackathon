@@ -3,26 +3,51 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #fffaf5;
+  --foreground: #7e2a0b;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #fffaf5;
+  color: #7e2a0b;
+  overflow: hidden;
+  user-select: none;
 }
+
+/* Artistic Ripple Effect for Recording State */
+.recording-active {
+  position: relative;
+}
+
+.recording-active::before,
+.recording-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid #ff6b00;
+  animation: ripple 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.recording-active::after {
+  animation-delay: 1.25s;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Smooth state transitions */
+.view-transition {
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+

@@ -11,25 +11,25 @@
 | Phase 1 — Local Edge | ✅ Complete | MCP Server + .DMO parser |
 | Phase 2 — Render Deployment | ✅ Complete | Live at `https://echoforge-mcp.onrender.com` |
 | Phase 3 — AWS Bedrock AgentCore | ✅ Complete | Harness V9 + updated system prompt with explicit tool names |
-| Phase 4 — Frontend Dashboard | ✅ **Just shipped** | route.ts bypass removed, single AgentCore call, voice fixed, TTS added |
+| Phase 4 — Frontend Dashboard | ✅ **Just shipped** | Ported assistant_interface.html design; robust Chrome voice auto-restart engine; AgentCore API wired; TTS audio |
 | Phase 5 — Production Deploy | 🔲 Next | Deploy frontend to AWS (Amplify/CloudFront), record demo |
 
 ## What Was Verified This Session (Empirical Evidence)
 
 1. **AWS CLI session** re-authenticated via `aws login --remote` for profile `lucian24`. `sts get-caller-identity` confirmed `152307755678`.
-2. **Harness V9 E2E test passed** — Nova Pro autonomously called `RenderServerTarget___queryDeviation`, received live `1.8 microns`, correctly classified as in-tolerance. No hallucination.
-3. **Harness system prompt updated** — Explicitly names both gateway tools so Nova Pro selects correctly. Status: `READY`.
-4. **route.ts rewritten** — Eliminated all client-side regex logic. Single `InvokeHarnessCommand`, typed stream collector, structured JSON response.
-5. **page.tsx rewritten** — Single `callAgent()` per prompt, multi-turn `sessionId` persistence, `continuous: false` + `en-US` speech recognition, `SpeechSynthesis` TTS output, deviation auto-parsed from Bedrock response text.
-6. **`next build` passed** — Zero TypeScript errors, zero warnings. 48kB main bundle.
+2. **Harness V9 E2E test passed** — Nova Pro autonomously called `RenderServerTarget___queryDeviation`, received live `1.8 microns`, correctly classified as in-tolerance.
+3. **assistant_interface.html ported into page.tsx** — Warm cream/orange minimalist aesthetic, floating animated mic button with radar ripples, interactive text toggle, live transcript display, and dynamic tolerance badges.
+4. **Chrome voice cutoff bug resolved** — Implemented an intent-driven auto-revival engine for `webkitSpeechRecognition`. When Chrome terminates recognition after short pauses (2-3 words), the engine auto-restarts immediately without wiping accumulated speech until the user taps to submit or reaches 2.5s of quiet.
+5. **Production Build verified** — `npm run build` compiles with 0 errors and 0 warnings.
+6. **Live server verified** — `curl -s http://localhost:3000` confirms all interactive elements and stylesheets are served.
 
 ## DNS Fix (Persists Until Network Reconnect)
 `resolvectl dns wlo1 1.1.1.1 1.0.0.1` — set Cloudflare DNS on `wlo1`.
 If AWS CLI breaks again after reconnect, re-run: `sudo resolvectl dns wlo1 1.1.1.1 1.0.0.1`
 
 ## Remaining Issues (Open)
-- **Issue #1**: Frontend design overhaul + 3D Digital Twin restoration (deferred — tracked in ISSUES.md)
-- **Issue #2**: Voice intake pipeline (partially fixed — `continuous:false`, `en-US`, proper error handling; full Amazon Transcribe upgrade still in backlog)
+- **Issue #1**: 3D Digital Twin restoration (deferred)
+- **Issue #2**: ✅ **RESOLVED (Client Speech)** — Chrome sentence cutoff resolved via accumulator & auto-recovery engine. (Full Amazon Transcribe Streaming still optional in backlog)
 - **Issue #3**: ✅ **CLOSED** — route.ts bypass eliminated
 
 ## Next Session Starting Point
