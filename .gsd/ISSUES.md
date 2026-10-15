@@ -32,9 +32,39 @@
 
 ## Issue #3: Architectural Bypass in API Route (`route.ts`)
 * **Severity**: Medium (Architectural Integrity)
+* **Status**: ✅ **CLOSED / RESOLVED** (2026-10-15)
+* **Resolution**:
+  * Removed direct REST bypass in `route.ts`.
+  * Updated Bedrock AgentCore Harness V9 system prompt and restricted `allowedTools` to `["RenderServerTarget___queryDeviation", "RenderServerTarget___getRepairProcedure"]`.
+  * Verified end-to-end autonomous multi-turn tool orchestration via Bedrock Nova Pro.
+
+---
+
+## Issue #4: UI Viewport Overflow, Vertical Centering & Unscrollable Layout
+* **Severity**: High (Usability & Accessibility)
 * **Status**: Open
+* **Reported By**: User (Screenshot from 2026-10-15 23:01 PKT)
 * **Description**:
-  * Currently, `POST /api/agent` detects `"repair procedure"` with a regex and directly invokes Render's REST endpoint `https://echoforge-mcp.onrender.com/repair`, bypassing the Bedrock AgentCore harness entirely.
+  * The main page container uses a vertically centered flex layout (`h-full` / `overflow-hidden` or rigid bounds) without an active scroll container.
+  * When AgentCore returns a detailed multi-paragraph report (e.g. metrology audit, flight pass/fail checklist, or full CNC G-code program), the card height exceeds the viewport height (100vh).
+  * Consequently, the top of the card—including the "EchoForge OS" header, the "AgentCore Intelligence" badge, and the "Ask Again" / "Replay" buttons—gets pushed above the top of the screen.
+  * The user is unable to scroll up to see the top controls or scroll down to see the bottom actions.
 * **Production Requirements**:
-  1. Expose `get_repair_procedure` properly through the AgentCore Gateway OpenAPI schema in S3.
-  2. Allow Bedrock Nova Pro to naturally select between `query_dmo_deviation` and `get_repair_procedure` via standard tool execution, maintaining pure multi-agent orchestration.
+  1. Convert `<main>` container to a scrollable layout (`min-h-screen overflow-y-auto` instead of fixed `h-full`).
+  2. Implement an internal scroll container on the Agent Response Card (`max-h-[60vh] overflow-y-auto` with a clean custom scrollbar) so the card never expands beyond the screen.
+  3. Keep the header navigation and "Ask Again" action buttons sticky/pinned so operators never lose navigation context.
+
+---
+
+## Issue #5: Unrendered Raw Markdown (`**bold**`, lists, code blocks) in Response Card
+* **Severity**: Medium (Readability & Aesthetics)
+* **Status**: Open
+* **Reported By**: User (Screenshot from 2026-10-15 23:01 PKT)
+* **Description**:
+  * AgentCore responses frequently contain standard markdown formatting (e.g. `**Date:**`, `**Flight Certification Tolerance Check:**`, `- bullet points`, and code blocks).
+  * Currently, the UI renders the response inside `<p className="whitespace-pre-wrap">{agentResponse}</p>`, displaying raw asterisks, backticks, and dashes without typographic rendering.
+* **Production Requirements**:
+  1. Add a rich markdown renderer (e.g. `react-markdown` with `remark-gfm` or formatted industrial text component) in `page.tsx`.
+  2. Render bold key-value pairs (`**Key:** Value`) as crisp telemetry labels.
+  3. Format bullet lists as industrial checklist items with Pass/Fail badges.
+  4. Render CNC G-code and program blocks in high-contrast monospaced code blocks with a copy button.

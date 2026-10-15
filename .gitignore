@@ -17,6 +17,9 @@ ENV/
 .env.*.local
 *.pem
 *.key
+session.md
+SESSION_HANDOFF.md
+*.session*
 
 # Logs
 npm-debug.log*
