@@ -68,13 +68,38 @@ export default function VoiceAssistantPage() {
   const speakResponse = useCallback(
     (text: string) => {
       if (!ttsEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-      window.speechSynthesis.cancel();
-      const clean = text.replace(/[*#_`]/g, '');
+      
+      const synth = window.speechSynthesis;
+      synth.cancel();
+      // Workaround for Chrome bug where speechSynthesis gets stuck in paused state
+      if (synth.paused) {
+        synth.resume();
+      }
+
+      const clean = text.replace(/[*#_`]/g, '').trim();
+      if (!clean) return;
+
       const utterance = new SpeechSynthesisUtterance(clean);
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
       utterance.lang = 'en-US';
-      window.speechSynthesis.speak(utterance);
+
+      // Pick natural sounding voice if available
+      const voices = synth.getVoices();
+      const preferredVoice =
+        voices.find((v) => v.lang === 'en-US' && /Google|Natural|Samantha|Alex/i.test(v.name)) ||
+        voices.find((v) => v.lang.startsWith('en')) ||
+        voices[0];
+
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+
+      utterance.onerror = (e) => {
+        console.warn('SpeechSynthesis error:', e);
+      };
+
+      synth.speak(utterance);
     },
     [ttsEnabled]
   );
@@ -441,15 +466,26 @@ export default function VoiceAssistantPage() {
                 : 'bg-white/80 border-brand-200 text-brand-950 shadow-brand-500/10'
             }`}
           >
-            <div className="flex items-center gap-2 mb-2">
-              {deviationStatus === 'error' ? (
-                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              )}
-              <span className="text-xs font-bold uppercase tracking-wider text-brand-600">
-                AgentCore Intelligence
-              </span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                {deviationStatus === 'error' ? (
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                )}
+                <span className="text-xs font-bold uppercase tracking-wider text-brand-600">
+                  AgentCore Intelligence
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => speakResponse(agentResponse)}
+                className="p-1.5 rounded-full hover:bg-brand-100 text-brand-600 transition-colors flex items-center gap-1 text-xs font-medium"
+                title="Replay Voice Response"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>Replay</span>
+              </button>
             </div>
             <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap text-brand-900 font-normal">
               {agentResponse}
