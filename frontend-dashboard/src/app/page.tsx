@@ -381,7 +381,7 @@ export default function VoiceAssistantPage() {
   }, []);
 
   return (
-    <div className="text-brand-900 font-sans min-h-screen w-screen flex flex-col items-center relative selection:bg-brand-300 selection:text-white bg-brand-50 overflow-y-auto">
+    <div className="text-brand-900 font-sans h-screen w-screen flex flex-col items-center justify-center relative selection:bg-brand-300 selection:text-white bg-brand-50 overflow-y-auto">
       {/* Dynamic Background Tint on Tolerance Status */}
       <div
         className={`absolute inset-0 pointer-events-none transition-colors duration-1000 z-0 ${
@@ -407,7 +407,7 @@ export default function VoiceAssistantPage() {
       </div>
 
       {/* Top Header Badge */}
-      <header className="sticky top-0 left-0 right-0 flex items-center justify-between z-20 px-6 py-4 bg-brand-50/80 backdrop-blur-md border-b border-brand-100/50">
+      <header className="absolute top-6 left-6 right-6 flex items-center justify-between z-20">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-md">
             <Sparkles className="w-4 h-4" />
@@ -475,7 +475,7 @@ export default function VoiceAssistantPage() {
       </header>
 
       {/* Main Content Container */}
-      <main className="z-10 w-full max-w-3xl px-6 pt-24 pb-28 flex flex-col items-center justify-center text-center">
+      <main className="z-10 w-full max-w-3xl px-6 flex flex-col items-center justify-center relative text-center" style={{minHeight: '100vh'}}>
         {/* Text Display / Transcript Area */}
         <div className="min-h-[140px] mb-8 flex flex-col justify-end items-center w-full px-4">
           <h1
@@ -546,7 +546,7 @@ export default function VoiceAssistantPage() {
               </div>
             </div>
 
-            <div className="max-h-[50vh] overflow-y-auto pr-1 text-left prose prose-sm max-w-none text-brand-900 leading-relaxed">
+            <div className="prose prose-sm max-w-none text-brand-900 leading-relaxed text-left">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
