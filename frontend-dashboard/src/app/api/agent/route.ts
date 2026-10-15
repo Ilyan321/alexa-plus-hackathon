@@ -4,9 +4,19 @@ import { v4 as uuidv4 } from 'uuid';
 
 const HARNESS_ARN = 'arn:aws:bedrock-agentcore:us-east-1:152307755678:harness/EchoForgeHarnessV9-qjI7ySsTk3';
 
+const region = process.env.APP_AWS_REGION || process.env.AWS_REGION || 'us-east-1';
+
+const credentials =
+  process.env.APP_AWS_ACCESS_KEY_ID && process.env.APP_AWS_SECRET_ACCESS_KEY
+    ? {
+        accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY,
+      }
+    : undefined;
+
 const client = new BedrockAgentCoreClient({
-  region: 'us-east-1',
-  // Credentials loaded from AWS_PROFILE env var or IAM role attached to the execution environment
+  region,
+  ...(credentials ? { credentials } : {}),
 });
 
 export async function POST(req: NextRequest) {
