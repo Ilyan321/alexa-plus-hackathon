@@ -16,8 +16,17 @@ import {
 type StatusType = 'idle' | 'listening' | 'processing' | 'normal' | 'error';
 
 // Strip <thinking>...</thinking> blocks that Nova Pro sometimes emits
-const stripThinking = (text: string) =>
-  text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+const stripThinking = (text: string) => {
+  const stripped = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+  if (!stripped && text.includes('<thinking>')) {
+    const matches = Array.from(text.matchAll(/<thinking>([\s\S]*?)<\/thinking>/g));
+    const last = matches[matches.length - 1]?.[1]?.trim();
+    if (last) {
+      return last.replace(/RenderServerTarget___\w+/g, 'sensor gateway');
+    }
+  }
+  return stripped || text || 'Analysis complete.';
+};
 
 // Parse deviation value from a text string
 const parseDeviation = (text: string): number | null => {
@@ -202,75 +211,77 @@ export default function VoiceAssistantPage() {
     setAgentResponse(null);
     setDeviationStatus('listening');
 
-    // Create a new instance
-    const rec = new SpeechRecognition();
-    rec.continuous = false; // Chrome handles single utterances much more reliably
-    rec.interimResults = true;
-    rec.lang = 'en-US';
-    rec.maxAlternatives = 1;
+    // Factory to spawn a fresh SpeechRecognition instance on every cycle
+    const spawnRecognition = () => {
+      if (!isRecordingIntentRef.current) return;
 
-    rec.onresult = (event: any) => {
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          accumulatedTranscriptRef.current += event.results[i][0].transcript + ' ';
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.lang = 'en-US';
+      rec.maxAlternatives = 1;
+
+      rec.onresult = (event: any) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            accumulatedTranscriptRef.current += event.results[i][0].transcript + ' ';
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+
+        const liveText = (accumulatedTranscriptRef.current + interim).trim();
+        if (liveText) {
+          setDisplayPrompt(liveText);
+        }
+
+        // Reset the silence timer: wait 2.5 seconds of quiet before auto-submitting
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+        }
+        silenceTimerRef.current = setTimeout(() => {
+          if (isRecordingIntentRef.current && (accumulatedTranscriptRef.current + interim).trim()) {
+            stopAndCommitSpeech();
+          }
+        }, 2500);
+      };
+
+      rec.onerror = (event: any) => {
+        if (event.error === 'no-speech') {
+          return;
+        }
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          isRecordingIntentRef.current = false;
+          setIsRecording(false);
+          setSubStatus('Microphone access denied');
+          setDisplayPrompt('Microphone permission required');
+        }
+      };
+
+      rec.onend = () => {
+        // Chrome ends the session on short pauses.
+        // We spawn a FRESH instance after 50ms so user can keep talking naturally without getting cut off!
+        if (isRecordingIntentRef.current) {
+          setTimeout(() => {
+            if (isRecordingIntentRef.current) {
+              spawnRecognition();
+            }
+          }, 60);
         } else {
-          interim += event.results[i][0].transcript;
-        }
-      }
-
-      const liveText = (accumulatedTranscriptRef.current + interim).trim();
-      if (liveText) {
-        setDisplayPrompt(liveText);
-      }
-
-      // Reset the silence timer: wait 2.5 seconds of quiet before auto-submitting
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
-      silenceTimerRef.current = setTimeout(() => {
-        if (isRecordingIntentRef.current && (accumulatedTranscriptRef.current + interim).trim()) {
-          stopAndCommitSpeech();
-        }
-      }, 2500);
-    };
-
-    rec.onerror = (event: any) => {
-      // 'no-speech' is triggered when Chrome detects silence
-      if (event.error === 'no-speech') {
-        // If the user hasn't said anything yet or is still thinking, keep listening if intent is active
-        return;
-      }
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        isRecordingIntentRef.current = false;
-        setIsRecording(false);
-        setSubStatus('Microphone access denied');
-        setDisplayPrompt('Microphone permission required');
-      }
-    };
-
-    rec.onend = () => {
-      // Chrome automatically triggers onend after pauses.
-      // If the user hasn't explicitly clicked stop and hasn't timed out, immediately resume listening!
-      if (isRecordingIntentRef.current && !isProcessing) {
-        try {
-          rec.start();
-        } catch {
-          // If restart fails, create fresh instance
           setIsRecording(false);
         }
-      } else {
-        setIsRecording(false);
+      };
+
+      try {
+        rec.start();
+        recognitionRef.current = rec;
+      } catch (e) {
+        console.warn('Speech recognition spawn warning:', e);
       }
     };
 
-    try {
-      rec.start();
-      recognitionRef.current = rec;
-    } catch (e) {
-      console.error('Failed to start speech recognition:', e);
-      setIsRecording(false);
-    }
+    spawnRecognition();
   }, [isProcessing, stopAndCommitSpeech]);
 
   // Mic toggle handler
