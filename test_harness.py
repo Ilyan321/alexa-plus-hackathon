@@ -16,7 +16,7 @@ try:
     response = client.invoke_harness(
         harnessArn=harness_arn,
         runtimeSessionId=session_id,
-        messages=[{"role": "user", "content": [{"text": "What is the deviation for the UPPER_FLANGE?"}]}],
+        messages=[{"role": "user", "content": [{"text": "What is the current deviation for the UPPER_FLANGE? If it is out of tolerance, provide the repair procedure."}]}],
     )
 
     for event in response["stream"]:
