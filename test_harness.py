@@ -6,7 +6,7 @@ import sys
 session = boto3.Session(profile_name="lucian24", region_name="us-east-1")
 client = session.client("bedrock-agentcore")
 
-harness_arn = "arn:aws:bedrock-agentcore:us-east-1:152307755678:harness/EchoForgeHarnessV6-RH7aCoPwA1"
+harness_arn = "arn:aws:bedrock-agentcore:us-east-1:152307755678:harness/EchoForgeHarnessV9-qjI7ySsTk3"
 # UUID is 36 chars which is >= 33 chars requirement
 session_id = str(uuid.uuid4())
 
