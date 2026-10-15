@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   Volume2,
   VolumeX,
+  RotateCcw,
+  Wrench,
 } from 'lucide-react';
 
 type StatusType = 'idle' | 'listening' | 'processing' | 'normal' | 'error';
@@ -30,7 +32,9 @@ const stripThinking = (text: string) => {
 
 // Parse deviation value from a text string
 const parseDeviation = (text: string): number | null => {
-  const m = text.match(/(\d+(?:\.\d+)?)\s*micron/i);
+  const m =
+    text.match(/(?:measured|current|reading|deviation(?: of| is|:)?|specifically at)\s*(\d+(?:\.\d+)?)\s*micron/i) ||
+    text.match(/(\d+(?:\.\d+)?)\s*micron/i);
   return m ? parseFloat(m[1]) : null;
 };
 
@@ -131,13 +135,20 @@ export default function VoiceAssistantPage() {
           setSessionId(data.sessionId);
         }
 
-        // Determine status
+        // Determine status: out-of-tolerance signals take clear precedence
+        const isOutOfTol =
+          /out of tolerance|exceeds|exceeded|exceeding|requires repair|requires cnc rework|not safe|deviation exceeded/i.test(cleanText);
+        const isWithinTol =
+          /within tolerance|in tolerance|nominal|passes tolerance|safe for (final )?turbine assembly/i.test(cleanText);
+
         const devVal = parseDeviation(cleanText);
         let newStatus: StatusType = 'normal';
-        if (devVal !== null) {
-          newStatus = devVal > 2.0 ? 'error' : 'normal';
-        } else if (/out of tolerance|repair procedure|re-milling|recalibrate/i.test(cleanText)) {
+        if (isOutOfTol) {
           newStatus = 'error';
+        } else if (isWithinTol) {
+          newStatus = 'normal';
+        } else if (devVal !== null) {
+          newStatus = devVal > 2.0 ? 'error' : 'normal';
         }
 
         setDeviationStatus(newStatus);
@@ -160,6 +171,18 @@ export default function VoiceAssistantPage() {
     },
     [callAgent, isProcessing, speakResponse]
   );
+
+  // Reset state to ask another question without page reload
+  const resetQuery = useCallback(() => {
+    setAgentResponse(null);
+    setDisplayPrompt("I'm listening.");
+    setSubStatus(null);
+    setDeviationStatus('idle');
+    setTextInput('');
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, []);
 
   // Stop recording and send accumulated speech
   const stopAndCommitSpeech = useCallback(() => {
@@ -477,7 +500,7 @@ export default function VoiceAssistantPage() {
                 : 'bg-white/80 border-brand-200 text-brand-950 shadow-brand-500/10'
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3 border-b border-brand-200/50 pb-2">
               <div className="flex items-center gap-2">
                 {deviationStatus === 'error' ? (
                   <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
@@ -488,19 +511,70 @@ export default function VoiceAssistantPage() {
                   AgentCore Intelligence
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => speakResponse(agentResponse)}
-                className="p-1.5 rounded-full hover:bg-brand-100 text-brand-600 transition-colors flex items-center gap-1 text-xs font-medium"
-                title="Replay Voice Response"
-              >
-                <Volume2 className="w-3.5 h-3.5" />
-                <span>Replay</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => speakResponse(agentResponse)}
+                  className="p-1 px-2.5 rounded-full hover:bg-brand-100 text-brand-600 transition-colors flex items-center gap-1 text-xs font-medium cursor-pointer"
+                  title="Replay Voice Response"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>Replay</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={resetQuery}
+                  className="p-1 px-2.5 rounded-full bg-brand-500/10 hover:bg-brand-500/20 text-brand-700 transition-colors flex items-center gap-1 text-xs font-semibold cursor-pointer"
+                  title="Ask Another Question"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Ask Again</span>
+                </button>
+              </div>
             </div>
+
             <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap text-brand-900 font-normal">
               {agentResponse}
             </p>
+
+            {/* Proactive 1-click Repair Procedure Button */}
+            {/would you like.*repair procedure|retrieve the cnc repair procedure\?/i.test(agentResponse) && (
+              <button
+                type="button"
+                onClick={() => processWorkflow('Yes, retrieve the CNC repair procedure for UPPER_FLANGE.')}
+                disabled={isProcessing}
+                className="w-full mt-4 py-3 px-4 rounded-2xl bg-brand-500 hover:bg-brand-600 active:scale-[0.98] text-white text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 shadow-md shadow-brand-500/20 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Wrench className="w-4 h-4" />
+                <span>🔧 Retrieve CNC Repair Procedure</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Quick Actions after response */}
+        {agentResponse && !isRecording && (
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-6 animate-fadeIn">
+            <button
+              type="button"
+              onClick={resetQuery}
+              className="px-4 py-2 rounded-full bg-white/90 hover:bg-white border border-brand-200 text-brand-700 text-xs sm:text-sm font-semibold shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-brand-500" />
+              <span>Ask Another Question</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                resetQuery();
+                setIsTextMode(true);
+                setTimeout(() => textInputRef.current?.focus(), 50);
+              }}
+              className="px-4 py-2 rounded-full bg-white/90 hover:bg-white border border-brand-200 text-brand-700 text-xs sm:text-sm font-semibold shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Keyboard className="w-3.5 h-3.5 text-brand-500" />
+              <span>Type a Question</span>
+            </button>
           </div>
         )}
 
@@ -514,20 +588,20 @@ export default function VoiceAssistantPage() {
                 id="mic-btn"
                 onClick={toggleListening}
                 disabled={isProcessing}
-                className={`group relative w-32 h-32 md:w-40 md:h-40 rounded-full bg-brand-500 hover:bg-brand-400 text-white flex items-center justify-center shadow-[0_20px_50px_-12px_rgba(255,107,0,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isRecording ? 'recording-active' : 'animate-float'
-                }`}
+                className={`group relative rounded-full bg-brand-500 hover:bg-brand-400 text-white flex items-center justify-center shadow-[0_20px_50px_-12px_rgba(255,107,0,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  agentResponse ? 'w-20 h-20 md:w-24 md:h-24' : 'w-32 h-32 md:w-40 md:h-40 animate-float'
+                } ${isRecording ? 'recording-active' : ''}`}
                 aria-label={isRecording ? 'Stop listening' : 'Start listening'}
               >
                 {isRecording ? (
-                  <AudioWaveform className="w-16 h-16 md:w-20 md:h-20 drop-shadow-md transition-transform duration-300 animate-pulse" />
+                  <AudioWaveform className={`${agentResponse ? 'w-10 h-10' : 'w-16 h-16 md:w-20 md:h-20'} drop-shadow-md transition-transform duration-300 animate-pulse`} />
                 ) : (
-                  <Mic className="w-14 h-14 md:w-16 md:h-16 drop-shadow-md transition-transform duration-300 group-hover:scale-110" />
+                  <Mic className={`${agentResponse ? 'w-9 h-9' : 'w-14 h-14 md:w-16 md:h-16'} drop-shadow-md transition-transform duration-300 group-hover:scale-110`} />
                 )}
               </button>
 
-              <p className="text-xs font-medium text-brand-400 mt-4 tracking-wide uppercase">
-                {isRecording ? 'Tap to submit early' : 'Tap to speak'}
+              <p className="text-xs font-medium text-brand-400 mt-3 tracking-wide uppercase">
+                {isRecording ? 'Tap to submit early' : agentResponse ? 'Tap mic to ask with voice' : 'Tap to speak'}
               </p>
             </div>
           ) : (
