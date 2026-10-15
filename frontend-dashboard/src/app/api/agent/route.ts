@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { BedrockAgentCoreClient, InvokeHarnessCommand } from '@aws-sdk/client-bedrock-agentcore';
 import { v4 as uuidv4 } from 'uuid';
 
-// In production, configure these via secure environment variables
-const client = new BedrockAgentCoreClient({ 
+const HARNESS_ARN = 'arn:aws:bedrock-agentcore:us-east-1:152307755678:harness/EchoForgeHarnessV9-qjI7ySsTk3';
+
+const client = new BedrockAgentCoreClient({
   region: 'us-east-1',
-  // Normally AWS credentials would be loaded from env or IAM roles attached to the container
+  // Credentials loaded from AWS_PROFILE env var or IAM role attached to the execution environment
 });
 
 export async function POST(req: NextRequest) {
@@ -13,55 +14,47 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { prompt, sessionId } = body;
 
-    // Use provided session ID or generate one (must be >= 33 chars for AgentCore)
-    const currentSessionId = sessionId || uuidv4() + "-1"; 
-    
-    // The ARN of the Harness we created
-    const harnessArn = "arn:aws:bedrock-agentcore:us-east-1:152307755678:harness/EchoForgeHarnessV9-qjI7ySsTk3";
-
-    if (prompt.includes("repair procedure")) {
-      const match = prompt.match(/deviation (exceeds.*?is |is )?([\d\.]+) microns/);
-      const deviation = match ? match[2] : "2.5";
-      
-      const renderRes = await fetch("https://echoforge-mcp.onrender.com/repair", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ feature_name: "UPPER_FLANGE", deviation_microns: parseFloat(deviation) })
-      });
-      const data = await renderRes.json();
-      return NextResponse.json({ 
-        text: data.repair_procedure || "Repair procedure not found.", 
-        sessionId: currentSessionId 
-      });
+    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      return NextResponse.json({ error: 'Invalid request: prompt is required' }, { status: 400 });
     }
 
+    // Sessions must be >= 33 chars for AgentCore runtime
+    const currentSessionId: string = sessionId || (uuidv4() + '-1');
+
     const command = new InvokeHarnessCommand({
-      harnessArn,
+      harnessArn: HARNESS_ARN,
       runtimeSessionId: currentSessionId,
-      messages: [{ role: 'user', content: [{ text: prompt }] }]
+      messages: [{ role: 'user', content: [{ text: prompt }] }],
     });
 
     const response = await client.send(command);
-    
-    // We need to collect the streamed response
-    let fullText = "";
+
+    // Collect the full streamed text from all content block deltas
+    let fullText = '';
+    let stopReason = '';
+
     if (response.stream) {
       for await (const event of response.stream) {
         if (event.contentBlockDelta?.delta?.text) {
           fullText += event.contentBlockDelta.delta.text;
         }
+        if (event.messageStop?.stopReason) {
+          stopReason = event.messageStop.stopReason;
+        }
       }
     }
 
-    return NextResponse.json({ 
-      text: fullText, 
-      sessionId: currentSessionId 
+    return NextResponse.json({
+      text: fullText,
+      sessionId: currentSessionId,
+      stopReason,
     });
 
-  } catch (error: any) {
-    console.error("AgentCore invocation error:", error);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[EchoForge API] AgentCore invocation error:', msg);
     return NextResponse.json(
-      { error: "Failed to invoke AgentCore Harness", details: error.message },
+      { error: 'Failed to invoke AgentCore Harness', details: msg },
       { status: 500 }
     );
   }
