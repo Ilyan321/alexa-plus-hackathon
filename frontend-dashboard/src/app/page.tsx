@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Mic,
   AudioWaveform,
@@ -171,6 +173,17 @@ export default function VoiceAssistantPage() {
     },
     [callAgent, isProcessing, speakResponse]
   );
+
+  // TTS toggle — cancel any active speech when muting
+  const toggleTts = useCallback(() => {
+    setTtsEnabled((prev) => {
+      const next = !prev;
+      if (!next && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      return next;
+    });
+  }, []);
 
   // Reset state to ask another question without page reload
   const resetQuery = useCallback(() => {
@@ -368,7 +381,7 @@ export default function VoiceAssistantPage() {
   }, []);
 
   return (
-    <div className="text-brand-900 font-sans h-screen w-screen flex flex-col items-center justify-center relative selection:bg-brand-300 selection:text-white bg-brand-50 overflow-hidden">
+    <div className="text-brand-900 font-sans min-h-screen w-screen flex flex-col items-center relative selection:bg-brand-300 selection:text-white bg-brand-50 overflow-y-auto">
       {/* Dynamic Background Tint on Tolerance Status */}
       <div
         className={`absolute inset-0 pointer-events-none transition-colors duration-1000 z-0 ${
@@ -394,7 +407,7 @@ export default function VoiceAssistantPage() {
       </div>
 
       {/* Top Header Badge */}
-      <header className="absolute top-6 left-6 right-6 flex items-center justify-between z-20">
+      <header className="sticky top-0 left-0 right-0 flex items-center justify-between z-20 px-6 py-4 bg-brand-50/80 backdrop-blur-md border-b border-brand-100/50">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-md">
             <Sparkles className="w-4 h-4" />
@@ -413,7 +426,7 @@ export default function VoiceAssistantPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setTtsEnabled(!ttsEnabled)}
+            onClick={toggleTts}
             className="px-3 py-1.5 rounded-full bg-white/70 backdrop-blur-md border border-brand-200 text-brand-700 text-xs font-medium hover:bg-white transition-all flex items-center gap-1.5 shadow-sm"
             title={ttsEnabled ? 'Mute voice response' : 'Enable voice response'}
           >
@@ -462,7 +475,7 @@ export default function VoiceAssistantPage() {
       </header>
 
       {/* Main Content Container */}
-      <main className="z-10 w-full max-w-3xl px-6 flex flex-col items-center justify-center h-full relative text-center">
+      <main className="z-10 w-full max-w-3xl px-6 pt-24 pb-28 flex flex-col items-center justify-center text-center">
         {/* Text Display / Transcript Area */}
         <div className="min-h-[140px] mb-8 flex flex-col justify-end items-center w-full px-4">
           <h1
@@ -533,9 +546,33 @@ export default function VoiceAssistantPage() {
               </div>
             </div>
 
-            <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap text-brand-900 font-normal">
-              {agentResponse}
-            </p>
+            <div className="max-h-[50vh] overflow-y-auto pr-1 text-left prose prose-sm max-w-none text-brand-900 leading-relaxed">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                  strong: ({ children }) => <strong className="font-semibold text-brand-900">{children}</strong>,
+                  ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
+                  li: ({ children }) => <li className="text-sm">{children}</li>,
+                  code: ({ children, className }) => {
+                    const isBlock = className?.includes('language-');
+                    return isBlock ? (
+                      <pre className="bg-gray-100 rounded-lg p-3 mb-2 overflow-x-auto text-xs font-mono"><code>{children}</code></pre>
+                    ) : (
+                      <code className="bg-gray-100 rounded px-1 py-0.5 text-xs font-mono">{children}</code>
+                    );
+                  },
+                  h1: ({ children }) => <h1 className="text-lg font-bold mb-2 text-brand-900">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-base font-bold mb-1.5 text-brand-900">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-sm font-semibold mb-1 text-brand-800">{children}</h3>,
+                  blockquote: ({ children }) => <blockquote className="border-l-4 border-brand-300 pl-3 italic text-brand-700 mb-2">{children}</blockquote>,
+                  hr: () => <hr className="border-brand-200 my-3" />,
+                }}
+              >
+                {agentResponse}
+              </ReactMarkdown>
+            </div>
 
             {/* Proactive 1-click Repair Procedure Button */}
             {/would you like.*repair procedure|retrieve the cnc repair procedure\?/i.test(agentResponse) && (
@@ -631,7 +668,7 @@ export default function VoiceAssistantPage() {
       </main>
 
       {/* Floating Mode Toggle (Voice <-> Keyboard) */}
-      <div className="absolute bottom-8 right-8 md:bottom-12 md:right-12 z-20">
+      <div className="fixed bottom-8 right-8 md:bottom-12 md:right-12 z-20">
         <button
           type="button"
           onClick={handleToggleMode}
