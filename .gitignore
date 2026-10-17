@@ -33,3 +33,9 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+session.save
+test-results/
+
+# Media & recordings
+videos/
+
