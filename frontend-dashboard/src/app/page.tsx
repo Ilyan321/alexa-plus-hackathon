@@ -157,7 +157,8 @@ export default function VoiceAssistantPage() {
       setIsRecording(false);
 
       const utterance = new SpeechSynthesisUtterance(clean);
-      utterance.rate = 1.0;
+      utterance.rate = 1.15;
+      utterance.volume = 1.0;
       utterance.pitch = 1.0;
       utterance.lang = 'en-US';
 
