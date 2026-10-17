@@ -19,7 +19,7 @@
 - **Primary Hackathon Track**: **Alexa+** (Self-Hosted Streamable HTTP MCP Server & Simulated Alexa+ Interface)
 - **Mini-Challenges Entered**:
   1. **AWS Builder**: AWS Bedrock AgentCore (Amazon Nova Pro), AWS Amplify SSR, IAM Security Policies.
-  2. **Open Source**: MIT Licensed repository with open-source MCP metrology bridge.
+  2. **Open Source**: MIT Licensed repository with open-source MCP metrology bridge (see [Open Source Submission Details](planning/OPEN_SOURCE_SUBMISSION.md)).
 
 ---
 
