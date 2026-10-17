@@ -57,6 +57,7 @@ export default function VoiceAssistantPage() {
   const bargeInRecognitionRef = useRef<any>(null);
   const isRecordingIntentRef = useRef(false);
   const accumulatedTranscriptRef = useRef('');
+  const latestLiveTranscriptRef = useRef('');
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   const continuousHandsFreeRef = useRef(false);
@@ -391,7 +392,7 @@ export default function VoiceAssistantPage() {
     }
 
     setIsRecording(false);
-    const rawCommit = accumulatedTranscriptRef.current.trim();
+    const rawCommit = (accumulatedTranscriptRef.current.trim() || latestLiveTranscriptRef.current.trim());
     if (rawCommit) {
       const normalizedCommit = normalizeAcousticSpeech(rawCommit);
       processWorkflow(normalizedCommit);
@@ -424,6 +425,7 @@ export default function VoiceAssistantPage() {
     }
 
     accumulatedTranscriptRef.current = '';
+    latestLiveTranscriptRef.current = '';
     isRecordingIntentRef.current = true;
     setIsRecording(true);
     setDisplayPrompt(isFollowUp ? 'Listening for follow-up...' : 'Listening...');
@@ -457,6 +459,7 @@ export default function VoiceAssistantPage() {
         }
 
         const rawLiveText = (accumulatedTranscriptRef.current + interim).trim();
+        latestLiveTranscriptRef.current = rawLiveText;
         if (rawLiveText) {
           const calibratedLiveText = normalizeAcousticSpeech(rawLiveText);
           setDisplayPrompt(calibratedLiveText);
@@ -467,7 +470,7 @@ export default function VoiceAssistantPage() {
           clearTimeout(silenceTimerRef.current);
         }
         silenceTimerRef.current = setTimeout(() => {
-          if (isRecordingIntentRef.current && (accumulatedTranscriptRef.current + interim).trim()) {
+          if (isRecordingIntentRef.current && (accumulatedTranscriptRef.current.trim() || latestLiveTranscriptRef.current.trim())) {
             stopAndCommitSpeech();
           }
         }, 1800);
@@ -487,7 +490,8 @@ export default function VoiceAssistantPage() {
 
       rec.onend = () => {
         // If user already spoke words and the engine stopped, commit them!
-        if (isRecordingIntentRef.current && accumulatedTranscriptRef.current.trim()) {
+        const spoken = (accumulatedTranscriptRef.current.trim() || latestLiveTranscriptRef.current.trim());
+        if (isRecordingIntentRef.current && spoken) {
           stopAndCommitSpeech();
           return;
         }
