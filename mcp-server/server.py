@@ -119,10 +119,12 @@ async def rest_health(request):
         "transports": ["streamable-http (/mcp)", "sse (/sse)"]
     })
 
+import random
+
 def generate_dummy_dmo():
     os.makedirs("factory_data", exist_ok=True)
     count = 0
-    # Alternating deviations for realistic test scenarios
+    # Base deviation states for realistic factory inspection cycles (nominal, near-limit, and out-of-tolerance)
     dev_states = [
         {"UPPER_FLANGE": 2.100, "MAIN_BORE_HOLE": 0.045, "TURBINE_BLADE_ROOT": 1.150, "INLET_NOZZLE_RING": 2.750, "EXHAUST_STATOR_BOSS": 1.200},
         {"UPPER_FLANGE": 1.850, "MAIN_BORE_HOLE": 0.140, "TURBINE_BLADE_ROOT": 1.750, "INLET_NOZZLE_RING": 2.100, "EXHAUST_STATOR_BOSS": 1.950},
@@ -132,7 +134,11 @@ def generate_dummy_dmo():
         state = dev_states[count % len(dev_states)]
         blocks = ["START_INSPECTION_ROUTINE/ AERO_BRACKET_V4\nDATE/ 2026-10-17\nMACHINE/ HEXAGON_GLOBAL_S\n"]
         for part_name, meta in PARTS_METROLOGY.items():
-            dev = state.get(part_name, 1.0)
+            base_dev = state.get(part_name, 1.0)
+            # Realistic physical measurement jitter (Gaussian noise ±0.03 to ±0.08 microns)
+            # Simulates real optical & contact probe thermal drift and surface roughness noise
+            noise = random.gauss(0, 0.04)
+            dev = max(0.010, round(base_dev + noise, 3))
             nominal = meta["nominal"]
             tol = meta["tolerance"]
             blocks.append(
@@ -143,7 +149,8 @@ def generate_dummy_dmo():
         with open(DMO_FILE_PATH, 'w') as f:
             f.write(content)
         count += 1
-        time.sleep(60)
+        # Realistic variable inspection interval (45-60 seconds)
+        time.sleep(random.uniform(45.0, 60.0))
 
 # Configure legacy SSE transport for backward compatibility
 sse = SseServerTransport("/messages")
