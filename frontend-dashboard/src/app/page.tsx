@@ -959,7 +959,7 @@ export default function VoiceAssistantPage() {
         )}
 
         {/* 5-Part Quick Metrology Selector Chips */}
-        {(!isRecording || continuousHandsFree) && (
+        {!isProcessing && (
           <div className="w-full max-w-2xl flex flex-wrap items-center justify-center gap-2 mb-6 animate-fadeIn">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-400 w-full mb-1">
               Inspection Features
@@ -986,7 +986,7 @@ export default function VoiceAssistantPage() {
         )}
 
         {/* Quick Actions after response */}
-        {agentResponse && (!isRecording || continuousHandsFree) && (
+        {agentResponse && !isProcessing && (
           <div className="flex flex-wrap items-center justify-center gap-3 mb-6 animate-fadeIn">
             <button
               type="button"
