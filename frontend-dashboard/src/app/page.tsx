@@ -504,16 +504,17 @@ export default function VoiceAssistantPage() {
     } catch {}
   }, []);
 
-  // Stop barge-in listener safely
+  // Stop barge-in listener immediately and release microphone hardware
   const stopBargeInListener = useCallback(() => {
     if (bargeInRecognitionRef.current) {
-      try {
-        bargeInRecognitionRef.current.onend = null;
-        bargeInRecognitionRef.current.onerror = null;
-        bargeInRecognitionRef.current.onresult = null;
-        bargeInRecognitionRef.current.stop();
-      } catch {}
+      const instance = bargeInRecognitionRef.current;
       bargeInRecognitionRef.current = null;
+      try {
+        instance.onend = null;
+        instance.onerror = null;
+        instance.onresult = null;
+        instance.abort();
+      } catch {}
     }
   }, []);
 
@@ -618,14 +619,14 @@ export default function VoiceAssistantPage() {
               if (/\b(echo|alexa|stop|cancel|pause|quiet|halt|shut\s*up|wait)\b/i.test(transcript)) {
                 console.log('[EchoForge] Barge-in wake trigger detected:', transcript);
                 synth.cancel();
-                stopBargeInListener();
                 isAssistantSpeakingRef.current = false;
+                stopBargeInListener();
                 setDisplayPrompt('Listening...');
                 setSubStatus('Interrupted via Barge-In. Listening...');
                 if (followUpTimerRef.current) clearTimeout(followUpTimerRef.current);
                 setTimeout(() => {
                   startRecording(true);
-                }, 100);
+                }, 250);
                 return;
               }
             }
@@ -932,8 +933,29 @@ export default function VoiceAssistantPage() {
       try {
         rec.start();
         recognitionRef.current = rec;
-      } catch (e) {
+      } catch (e: any) {
         console.warn('Speech recognition spawn warning:', e);
+        // If device was still resetting from previous session, retry after short backoff
+        if (isRecordingIntentRef.current && !isAssistantSpeakingRef.current) {
+          setTimeout(() => {
+            if (isRecordingIntentRef.current && !isAssistantSpeakingRef.current) {
+              try {
+                const retryRec = new SpeechRecognition();
+                retryRec.continuous = true;
+                retryRec.interimResults = true;
+                retryRec.lang = 'en-US';
+                retryRec.maxAlternatives = 1;
+                retryRec.onresult = rec.onresult;
+                retryRec.onerror = rec.onerror;
+                retryRec.onend = rec.onend;
+                retryRec.start();
+                recognitionRef.current = retryRec;
+              } catch (err2) {
+                console.error('Speech recognition retry failed:', err2);
+              }
+            }
+          }, 300);
+        }
       }
     };
 
