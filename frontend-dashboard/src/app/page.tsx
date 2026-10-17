@@ -65,78 +65,44 @@ const formatSpokenPronunciation = (str: string): string => {
     .replace(/_/g, ' ');
 };
 
-// Generate a concise spoken summary for voice synthesis instead of reading raw code/telemetry
-const summarizeSpeechForVoice = (text: string, contextPrompt?: string): string => {
-  // Check if this is a CNC repair procedure
-  if (/REPAIR PROCEDURE|FACING & RE-THREAD CHASING|PRECISION DIAMOND HONING|CNC RE-MILLING|EDM SPARK EROSION|MICRO-ABRASIVE|boss seating surface|boring bar|carbide end mill/i.test(text)) {
-    const featureMatch = (contextPrompt && contextPrompt.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i)) ||
-      text.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
-    const feature = featureMatch ? formatSpokenPronunciation(featureMatch[1]) : 'the part';
+// Dynamically convert AgentCore's generated analysis into natural spoken speech without hardcoded placeholders
+const formatAgentCoreSpokenText = (text: string, contextPrompt?: string): string => {
+  if (!text) return '';
 
-    // Speak the concrete physical repair instructions with exact tooling offsets
-    if (/FACING & RE-THREAD CHASING/i.test(text) || /boss seating surface/i.test(text) || /skim cut/i.test(text)) {
-      return `Repair procedure for ${feature}: Perform a C N C face skim cut of 0.02 millimeters on the boss seating surface and chase M 24 threads with a high-speed toolholder.`;
-    }
-    if (/CNC RE-MILLING|carbide end mill|robotic welder offset/i.test(text)) {
-      const devMatch = text.match(/([0-9.]+)\s*micron/i);
-      const amount = devMatch ? `${devMatch[1]} microns` : 'the deviation';
-      return `Repair procedure for ${feature}: Shave off ${amount} using a 1 millimeter carbide end mill, and recalibrate robotic welder offset by minus 0.05 millimeters.`;
-    }
-    if (/PRECISION DIAMOND HONING|boring bar|cylinder bore/i.test(text)) {
-      const devMatch = text.match(/([0-9.]+)\s*micron/i);
-      const amount = devMatch ? `${devMatch[1]} microns` : 'the deviation';
-      return `Repair procedure for ${feature}: Bore out cylinder bore by an additional ${amount} using titanium boring bar T-12 at 3200 R P M.`;
-    }
-    if (/EDM SPARK EROSION|dielectric fluid|fir-tree root/i.test(text)) {
-      const devMatch = text.match(/([0-9.]+)\s*micron/i);
-      const amount = devMatch ? `${devMatch[1]} microns` : 'the deviation';
-      return `Repair procedure for ${feature}: Submerge in dielectric fluid and run spark erosion pass at 45 amps to re-profile fir-tree root tangs by ${amount}.`;
-    }
-    if (/MICRO-ABRASIVE CNC BLENDING|orbital lap|passivation coat/i.test(text)) {
-      const devMatch = text.match(/([0-9.]+)\s*micron/i);
-      const amount = devMatch ? `${devMatch[1]} microns` : 'the deviation';
-      return `Repair procedure for ${feature}: Perform a 3-axis orbital lap on nozzle throat surface to reduce deviation of ${amount}, followed by ceramic passivation coat.`;
-    }
+  let spoken = text
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '') // strip internal thoughts
+    .replace(/```[\s\S]*?```/g, '') // strip raw multiline code blocks (e.g. raw G-code) so TTS stays fluid
+    .replace(/`([^`]+)`/g, '$1') // unwrap inline code
+    .replace(/\*\*|__|[*_]/g, ' ') // strip bold/italics
+    .replace(/^#+\s+/gm, '') // strip markdown header tags
+    .replace(/^\s*[-*•]\s+/gm, '') // strip bullet dashes
+    .replace(/\|[^\n]+\|/g, ' ') // strip table borders
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // unwrap links
+    // Convert units and technical acronyms for clear spoken phonetics
+    .replace(/(\d+(?:\.\d+)?)\s*mm\b/gi, '$1 millimeters')
+    .replace(/(\d+(?:\.\d+)?)\s*µm\b/gi, '$1 microns')
+    .replace(/M24\b/g, 'M 24')
+    .replace(/\bUPPER_FLANGE\b/g, 'Upper Flange')
+    .replace(/\bMAIN_BORE_HOLE\b/g, 'Main Bore Hole')
+    .replace(/\bTURBINE_BLADE_ROOT\b/g, 'Turbine Blade Root')
+    .replace(/\bINLET_NOZZLE_RING\b/g, 'Inlet Nozzle Ring')
+    .replace(/\bEXHAUST_STATOR_BOSS\b/g, 'Exhaust Stator Boss')
+    .replace(/\bCNC\b/g, 'C N C')
+    .replace(/\bRPM\b/g, 'R P M')
+    .replace(/\bCMM\b/g, 'C M M')
+    .replace(/\bNOMINAL\b/g, 'Nominal')
+    .replace(/\bOUT OF TOLERANCE\b/g, 'Out of tolerance')
+    .replace(/\bWITHIN TOLERANCE\b/g, 'Within tolerance')
+    .replace(/_/g, ' ')
+    // Convert remaining all-caps words to Title Case unless standard 3-letter acronym
+    .replace(/\b([A-Z]{2,})\b/g, (match) => {
+      if (match === 'R P M' || match === 'C M M' || match === 'C N C' || match === 'DMO') return match;
+      return match.charAt(0) + match.slice(1).toLowerCase();
+    })
+    .replace(/\s+/g, ' ')
+    .trim();
 
-    return `C N C repair procedure generated for ${feature}.`;
-  }
-
-  // Extract key metrology parameters if this is an inspection report
-  const featureMatch = (contextPrompt && contextPrompt.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i)) ||
-    text.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
-  const devVal = parseDeviation(text);
-  const isOutOfTol = /out of tolerance|exceeds|exceeded|requires repair|rework/i.test(text);
-  const isWithinTol = /within tolerance|nominal|passes tolerance|safe for/i.test(text);
-
-  if (featureMatch && devVal !== null) {
-    const featureReadable = formatSpokenPronunciation(featureMatch[1]);
-    if (isOutOfTol) {
-      return `${featureReadable} measured ${devVal} microns, exceeding tolerance limit. Part requires rework. Would you like the C N C repair procedure?`;
-    }
-    if (isWithinTol) {
-      return `${featureReadable} measured ${devVal} microns. Within tolerance zone and safe for turbine assembly.`;
-    }
-  }
-
-  // If already reasonably short (< 25 words), speak it cleaned
-  const clean = text.replace(/[*#_`]/g, '').trim();
-  const words = clean.split(/\s+/);
-  if (words.length <= 25) {
-    return formatSpokenPronunciation(clean);
-  }
-
-  // Otherwise, take the first 1-2 key sentences
-  const sentences = clean.split(/(?<=[.?!])\s+/).filter(s => !s.startsWith('-') && !s.startsWith('G0') && !s.includes('http'));
-  if (sentences.length > 0) {
-    const summary = sentences.slice(0, 2).join(' ');
-    let formatted = formatSpokenPronunciation(summary);
-    if (isOutOfTol && !formatted.includes('procedure')) {
-      return `${formatted} Would you like the C N C repair procedure?`;
-    }
-    return formatted;
-  }
-
-  return formatSpokenPronunciation(clean.slice(0, 180));
+  return spoken;
 };
 
 // Normalize phonetic variations and accent pronunciations to exact aerospace metrology terms
@@ -306,9 +272,8 @@ export default function VoiceAssistantPage() {
         synth.resume();
       }
 
-      // Generate a concise executive summary for spoken voice, preventing verbose code reading
-      const spokenSummary = summarizeSpeechForVoice(text, contextPrompt);
-      const clean = spokenSummary.replace(/[*#_`]/g, '').trim();
+      // Dynamically read AgentCore's generated response aloud naturally without static placeholders
+      const clean = formatAgentCoreSpokenText(text, contextPrompt);
       if (!clean) {
         if (continuousHandsFreeRef.current && !isTextMode) {
           setTimeout(() => startRecording(true), 500);
