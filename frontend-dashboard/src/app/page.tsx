@@ -692,8 +692,8 @@ export default function VoiceAssistantPage() {
           </p>
         </div>
 
-        {/* Agent Response Card (if returned) */}
-        {agentResponse && !isRecording && (
+        {/* Agent Response Card (persists across continuous hands-free follow-up queries) */}
+        {agentResponse && (
           <div
             className={`mb-6 max-w-2xl w-full rounded-3xl backdrop-blur-xl border shadow-xl flex flex-col text-left transition-all duration-500 animate-fadeIn ${
               deviationStatus === 'error'
@@ -813,7 +813,7 @@ export default function VoiceAssistantPage() {
         )}
 
         {/* 5-Part Quick Metrology Selector Chips */}
-        {!isRecording && (
+        {(!isRecording || continuousHandsFree) && (
           <div className="w-full max-w-2xl flex flex-wrap items-center justify-center gap-2 mb-6 animate-fadeIn">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-400 w-full mb-1">
               Inspection Features
@@ -840,7 +840,7 @@ export default function VoiceAssistantPage() {
         )}
 
         {/* Quick Actions after response */}
-        {agentResponse && !isRecording && (
+        {agentResponse && (!isRecording || continuousHandsFree) && (
           <div className="flex flex-wrap items-center justify-center gap-3 mb-6 animate-fadeIn">
             <button
               type="button"
