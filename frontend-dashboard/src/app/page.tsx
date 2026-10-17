@@ -54,8 +54,15 @@ const normalizeAcousticSpeech = (rawText: string): string => {
   text = text.replace(/\b(aper\s*falnge|upper\s*falnge|aper\s*flange)\b/gi, 'UPPER_FLANGE');
   text = text.replace(/\bupper\s*fl\w*\b/gi, 'UPPER_FLANGE');
 
-  // Main Bore Hole phonetics (e.g. "main bore", "mane boor hole", "men pour hole")
-  text = text.replace(/\b(main|mane|men|mine)\s*(bore|boar|boor|pour|four|pore)\s*(hole|whole|hall|hold)?\b/gi, 'MAIN_BORE_HOLE');
+  // Main Bore Hole phonetics (e.g. "main bore", "mane boor hole", "manhole board", "manhole")
+  text = text.replace(/\b(main|mane|men|mine|man)\s*(bore|boar|boor|pour|four|pore)?\s*(hole|whole|hall|hold|board)?\b/gi, (match) => {
+    if (/man\s*hole|manhole|main\s*bore|mane\s*boor|bore\s*hole/i.test(match)) {
+      return 'MAIN_BORE_HOLE';
+    }
+    return match;
+  });
+  text = text.replace(/\b(manhole|man\s*hole|main\s*board)\b/gi, 'MAIN_BORE_HOLE');
+  text = text.replace(/\bMAIN_BORE_HOLE\s*(board|hole|bore)\b/gi, 'MAIN_BORE_HOLE');
   text = text.replace(/\bm\s*a\s*i\s*n\s*b\s*o\s*r\s*e(\s*h\s*o\s*l\s*e)?\b/gi, 'MAIN_BORE_HOLE');
   text = text.replace(/\b(main\s*bore|bore\s*hole)\b/gi, 'MAIN_BORE_HOLE');
 
