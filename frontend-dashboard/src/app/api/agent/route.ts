@@ -73,14 +73,14 @@ export async function POST(req: NextRequest) {
       const isRepair = /getRepairProcedure|repair/i.test(fullText);
       const isQuery = !isRepair;
 
-      // Extract feature name using robust regex matching known inspection features or json
+      // Prioritize the user's explicit current prompt so previous multi-turn history does not hijack the feature
       const featureFromPrompt = prompt.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
       const featureFromJson = fullText.match(/"feature_name"\s*:\s*"([^"]+)"/i) || fullText.match(/'feature_name'\s*:\s*'([^']+)'/i);
       const featureFromText = fullText.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
 
       let feature = (
-        featureFromJson?.[1] ||
         featureFromPrompt?.[1] ||
+        featureFromJson?.[1] ||
         featureFromText?.[1] ||
         'UPPER_FLANGE'
       ).toUpperCase();

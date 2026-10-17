@@ -66,16 +66,18 @@ const formatSpokenPronunciation = (str: string): string => {
 };
 
 // Generate a concise spoken summary for voice synthesis instead of reading raw code/telemetry
-const summarizeSpeechForVoice = (text: string): string => {
+const summarizeSpeechForVoice = (text: string, contextPrompt?: string): string => {
   // Check if this is a CNC repair procedure
   if (/REPAIR PROCEDURE|PRECISION DIAMOND HONING|G-CODE|RPM|boring bar/i.test(text)) {
-    const featureMatch = text.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
+    const featureMatch = (contextPrompt && contextPrompt.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i)) ||
+      text.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
     const feature = featureMatch ? formatSpokenPronunciation(featureMatch[1]) : 'the part';
     return `C N C repair procedure generated for ${feature}. Toolpath parameters and offset instructions are displayed on your console.`;
   }
 
   // Extract key metrology parameters if this is an inspection report
-  const featureMatch = text.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
+  const featureMatch = (contextPrompt && contextPrompt.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i)) ||
+    text.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
   const devVal = parseDeviation(text);
   const isOutOfTol = /out of tolerance|exceeds|exceeded|requires repair|rework/i.test(text);
   const isWithinTol = /within tolerance|nominal|passes tolerance|safe for/i.test(text);
@@ -253,7 +255,7 @@ export default function VoiceAssistantPage() {
 
   // Speak agent response aloud with continuous hands-free follow-up loop and barge-in detection
   const speakResponse = useCallback(
-    (text: string) => {
+    (text: string, contextPrompt?: string) => {
       if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
         if (continuousHandsFreeRef.current && !isTextMode) {
           setTimeout(() => startRecording(true), 500);
@@ -279,7 +281,7 @@ export default function VoiceAssistantPage() {
       }
 
       // Generate a concise executive summary for spoken voice, preventing verbose code reading
-      const spokenSummary = summarizeSpeechForVoice(text);
+      const spokenSummary = summarizeSpeechForVoice(text, contextPrompt);
       const clean = spokenSummary.replace(/[*#_`]/g, '').trim();
       if (!clean) {
         if (continuousHandsFreeRef.current && !isTextMode) {
@@ -443,7 +445,7 @@ export default function VoiceAssistantPage() {
             : '✓ Within Tolerance (Nominal)'
         );
 
-        speakResponse(cleanText);
+        speakResponse(cleanText, prompt);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Unknown error';
         setDeviationStatus('error');
