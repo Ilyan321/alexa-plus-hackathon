@@ -215,6 +215,13 @@ export default function VoiceAssistantPage() {
     continuousHandsFreeRef.current = continuousHandsFree;
   }, [continuousHandsFree]);
 
+  // Silent background pre-warm of the Render Edge MCP server on initial app load
+  useEffect(() => {
+    try {
+      fetch('https://echoforge-mcp.onrender.com/health', { mode: 'no-cors' }).catch(() => {});
+    } catch {}
+  }, []);
+
   // Stop barge-in listener safely
   const stopBargeInListener = useCallback(() => {
     if (bargeInRecognitionRef.current) {
@@ -404,8 +411,14 @@ export default function VoiceAssistantPage() {
       setSubStatus('Interrogating factory sensors via AWS AgentCore...');
       setDisplayPrompt(`"${prompt}"`);
 
+      // Friendly cold-start indicator if Render edge node or AgentCore is waking from sleep
+      const coldStartTimer = setTimeout(() => {
+        setSubStatus('Connecting to edge sensor node (waking from standby)...');
+      }, 4500);
+
       try {
         const data = await callAgent(prompt);
+        clearTimeout(coldStartTimer);
         const cleanText = stripThinking(data.text);
 
         if (data.sessionId) {
