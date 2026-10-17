@@ -9,6 +9,7 @@ from starlette.routing import Route
 from starlette.responses import JSONResponse
 from mcp.server.mcpserver import MCPServer
 from mcp.server.sse import SseServerTransport
+from mcp.server.transport_security import TransportSecuritySettings
 
 mcp = MCPServer("EchoForge Metrology Bridge")
 DMO_FILE_PATH = os.path.join("factory_data", "inspection_latest.dmo")
@@ -90,7 +91,7 @@ def get_repair_procedure(feature_name: str, deviation_microns: float) -> str:
     else:
         return f"REPAIR PROCEDURE FOR {clean_name}: Standard precision CNC skim cut and surface re-measurement required."
 
-
+@mcp.custom_route("/repair", methods=["POST"])
 async def rest_repair(request):
     try:
         body = await request.json()
@@ -100,6 +101,7 @@ async def rest_repair(request):
     except:
         return JSONResponse({"repair_procedure": get_repair_procedure("UPPER_FLANGE", 0.0)})
 
+@mcp.custom_route("/query", methods=["POST"])
 async def rest_query(request):
     try:
         body = await request.json()
@@ -107,6 +109,15 @@ async def rest_query(request):
         return JSONResponse({"deviation_info": get_deviation(feature)})
     except:
         return JSONResponse({"deviation_info": get_deviation("UPPER_FLANGE")})
+
+@mcp.custom_route("/health", methods=["GET"])
+async def rest_health(request):
+    return JSONResponse({
+        "status": "healthy",
+        "service": "EchoForge Metrology Bridge",
+        "mcp_protocol_version": "2025-11-25",
+        "transports": ["streamable-http (/mcp)", "sse (/sse)"]
+    })
 
 def generate_dummy_dmo():
     os.makedirs("factory_data", exist_ok=True)
@@ -134,25 +145,29 @@ def generate_dummy_dmo():
         count += 1
         time.sleep(60)
 
+# Configure legacy SSE transport for backward compatibility
+sse = SseServerTransport("/messages")
+
+async def handle_sse(request):
+    async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
+        await mcp._lowlevel_server.run(streams[0], streams[1], mcp.create_initialization_options())
+
+async def handle_messages(request):
+    await sse.handle_post_message(request.scope, request.receive, request._send)
+
+# Attach legacy SSE routes
+mcp._custom_starlette_routes.extend([
+    Route("/sse", endpoint=handle_sse, methods=["GET"]),
+    Route("/sse", endpoint=handle_messages, methods=["POST"]),
+    Route("/messages", endpoint=handle_messages, methods=["POST"]),
+])
+
+# Create Streamable HTTP app (MCP Spec 2025-11-25) with DNS rebinding protection disabled for cloud proxy routing
+security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
+app = mcp.streamable_http_app(streamable_http_path="/mcp", transport_security=security)
+
 if __name__ == "__main__":
     t = threading.Thread(target=generate_dummy_dmo, daemon=True)
     t.start()
     port = int(os.environ.get("PORT", 8000))
-    sse = SseServerTransport("/messages")
-    
-    async def handle_sse(request):
-        async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
-            await mcp.server.run(streams[0], streams[1], mcp.server.create_initialization_options())
-
-    async def handle_messages(request):
-        await sse.handle_post_message(request.scope, request.receive, request._send)
-
-    app = Starlette(debug=True, routes=[
-        Route("/sse", endpoint=handle_sse, methods=["GET"]),
-        Route("/sse", endpoint=handle_messages, methods=["POST"]),
-        Route("/messages", endpoint=handle_messages, methods=["POST"]),
-        Route("/query", endpoint=rest_query, methods=["POST"]),
-        Route("/repair", endpoint=rest_repair, methods=["POST"])
-    ])
-    
     uvicorn.run(app, host="0.0.0.0", port=port)
