@@ -152,11 +152,7 @@ export default function VoiceAssistantPage() {
   // Synchronize continuousHandsFree ref
   useEffect(() => {
     continuousHandsFreeRef.current = continuousHandsFree;
-    // If operator turns on hands-free and we're currently idle, auto-start listening
-    if (continuousHandsFree && !isRecording && !isProcessing && !isAssistantSpeakingRef.current && !isTextMode) {
-      startRecording();
-    }
-  }, [continuousHandsFree, isRecording, isProcessing, isTextMode]);
+  }, [continuousHandsFree]);
 
   // Call the Bedrock AgentCore backend
   const callAgent = useCallback(
@@ -343,10 +339,12 @@ export default function VoiceAssistantPage() {
           } catch {}
         }
         setIsRecording(false);
+      } else if (next && !isRecording && !isProcessing && !isAssistantSpeakingRef.current && !isTextMode) {
+        setTimeout(() => startRecording(Boolean(agentResponse)), 100);
       }
       return next;
     });
-  }, [isRecording]);
+  }, [isRecording, isProcessing, isTextMode, agentResponse]);
 
   // Reset state to ask another question without page reload
   const resetQuery = useCallback(() => {
@@ -412,7 +410,7 @@ export default function VoiceAssistantPage() {
     setIsRecording(true);
     setDisplayPrompt(isFollowUp ? 'Listening for follow-up...' : 'Listening...');
     setSubStatus(isFollowUp ? 'Hands-Free: Listening for follow-up command...' : 'Recording... (speak your command)');
-    if (!isFollowUp) {
+    if (!isFollowUp && !continuousHandsFreeRef.current) {
       setAgentResponse(null);
     }
     setDeviationStatus('listening');
