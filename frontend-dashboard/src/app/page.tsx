@@ -68,11 +68,37 @@ const formatSpokenPronunciation = (str: string): string => {
 // Generate a concise spoken summary for voice synthesis instead of reading raw code/telemetry
 const summarizeSpeechForVoice = (text: string, contextPrompt?: string): string => {
   // Check if this is a CNC repair procedure
-  if (/REPAIR PROCEDURE|PRECISION DIAMOND HONING|G-CODE|RPM|boring bar/i.test(text)) {
+  if (/REPAIR PROCEDURE|FACING & RE-THREAD CHASING|PRECISION DIAMOND HONING|CNC RE-MILLING|EDM SPARK EROSION|MICRO-ABRASIVE|boss seating surface|boring bar|carbide end mill/i.test(text)) {
     const featureMatch = (contextPrompt && contextPrompt.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i)) ||
       text.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
     const feature = featureMatch ? formatSpokenPronunciation(featureMatch[1]) : 'the part';
-    return `C N C repair procedure generated for ${feature}. Toolpath parameters and offset instructions are displayed on your console.`;
+
+    // Speak the concrete physical repair instructions with exact tooling offsets
+    if (/FACING & RE-THREAD CHASING/i.test(text) || /boss seating surface/i.test(text) || /skim cut/i.test(text)) {
+      return `Repair procedure for ${feature}: Perform a C N C face skim cut of 0.02 millimeters on the boss seating surface and chase M 24 threads with a high-speed toolholder.`;
+    }
+    if (/CNC RE-MILLING|carbide end mill|robotic welder offset/i.test(text)) {
+      const devMatch = text.match(/([0-9.]+)\s*micron/i);
+      const amount = devMatch ? `${devMatch[1]} microns` : 'the deviation';
+      return `Repair procedure for ${feature}: Shave off ${amount} using a 1 millimeter carbide end mill, and recalibrate robotic welder offset by minus 0.05 millimeters.`;
+    }
+    if (/PRECISION DIAMOND HONING|boring bar|cylinder bore/i.test(text)) {
+      const devMatch = text.match(/([0-9.]+)\s*micron/i);
+      const amount = devMatch ? `${devMatch[1]} microns` : 'the deviation';
+      return `Repair procedure for ${feature}: Bore out cylinder bore by an additional ${amount} using titanium boring bar T-12 at 3200 R P M.`;
+    }
+    if (/EDM SPARK EROSION|dielectric fluid|fir-tree root/i.test(text)) {
+      const devMatch = text.match(/([0-9.]+)\s*micron/i);
+      const amount = devMatch ? `${devMatch[1]} microns` : 'the deviation';
+      return `Repair procedure for ${feature}: Submerge in dielectric fluid and run spark erosion pass at 45 amps to re-profile fir-tree root tangs by ${amount}.`;
+    }
+    if (/MICRO-ABRASIVE CNC BLENDING|orbital lap|passivation coat/i.test(text)) {
+      const devMatch = text.match(/([0-9.]+)\s*micron/i);
+      const amount = devMatch ? `${devMatch[1]} microns` : 'the deviation';
+      return `Repair procedure for ${feature}: Perform a 3-axis orbital lap on nozzle throat surface to reduce deviation of ${amount}, followed by ceramic passivation coat.`;
+    }
+
+    return `C N C repair procedure generated for ${feature}.`;
   }
 
   // Extract key metrology parameters if this is an inspection report
