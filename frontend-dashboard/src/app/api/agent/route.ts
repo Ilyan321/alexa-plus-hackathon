@@ -62,24 +62,38 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Detect if Nova Pro outputted an action intent to invoke RenderServerTarget
-    const toolCallMatch = fullText.match(/RenderServerTarget___(queryDeviation|getRepairProcedure)[^\w\d{]*(\{[^}]+\})/i) ||
-      fullText.match(/Action:\s*RenderServerTarget___(queryDeviation|getRepairProcedure)[\s\S]*?(?:Parameters|Input)?:\s*(\{[^}]+\})/i);
+    // Detect if Nova Pro outputted an action intent to invoke RenderServerTarget or query/repair
+    const hasToolIntent =
+      /RenderServerTarget___(queryDeviation|getRepairProcedure)/i.test(fullText) ||
+      /Action:\s*RenderServerTarget/i.test(fullText) ||
+      /\bqueryDeviation\b/i.test(fullText) ||
+      /\bgetRepairProcedure\b/i.test(fullText);
 
-    if (toolCallMatch) {
-      const toolName = toolCallMatch[1];
-      let args: any = {};
-      try {
-        args = JSON.parse(toolCallMatch[2]);
-      } catch {
-        const featureMatch = fullText.match(/"feature_name"\s*:\s*"([^"]+)"/i);
-        if (featureMatch) args.feature_name = featureMatch[1];
-      }
+    if (hasToolIntent) {
+      const isRepair = /getRepairProcedure|repair/i.test(fullText);
+      const isQuery = !isRepair;
 
-      const feature = (args.feature_name || 'UPPER_FLANGE').toUpperCase();
+      // Extract feature name using robust regex matching known inspection features or json
+      const featureFromPrompt = prompt.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
+      const featureFromJson = fullText.match(/"feature_name"\s*:\s*"([^"]+)"/i) || fullText.match(/'feature_name'\s*:\s*'([^']+)'/i);
+      const featureFromText = fullText.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
+
+      let feature = (
+        featureFromJson?.[1] ||
+        featureFromPrompt?.[1] ||
+        featureFromText?.[1] ||
+        'UPPER_FLANGE'
+      ).toUpperCase();
+
+      // Extract deviation microns if repair
+      const deviationMatch = fullText.match(/"deviation_microns"\s*:\s*([0-9.]+)/i) ||
+        fullText.match(/([0-9.]+)\s*micron/i) ||
+        prompt.match(/([0-9.]+)\s*micron/i);
+      const devMicrons = deviationMatch ? parseFloat(deviationMatch[1]) : 2.1;
+
       let toolResult = '';
 
-      if (toolName.toLowerCase().includes('query')) {
+      if (isQuery) {
         const queryRes = await fetch('https://echoforge-mcp.onrender.com/query', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -89,8 +103,7 @@ export async function POST(req: NextRequest) {
         if (queryRes?.deviation_info) {
           toolResult = queryRes.deviation_info;
         }
-      } else if (toolName.toLowerCase().includes('repair')) {
-        const devMicrons = parseFloat(args.deviation_microns || 2.1);
+      } else {
         const repairRes = await fetch('https://echoforge-mcp.onrender.com/repair', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -136,6 +149,15 @@ export async function POST(req: NextRequest) {
           fullText = `### Metrology Report: ${feature}\n\n${toolResult}`;
         }
       }
+    }
+
+    // Safety guard: ensure no raw RenderServerTarget___ or Action: leaked into fullText
+    if (/RenderServerTarget|Action:\s*RenderServerTarget/i.test(fullText)) {
+      fullText = fullText
+        .replace(/Action:\s*RenderServerTarget[^\n]*\n?/gi, '')
+        .replace(/RenderServerTarget___\w+/gi, '')
+        .replace(/Input:\s*\{[^}]*\}\n?/gi, '')
+        .trim();
     }
 
     return NextResponse.json({

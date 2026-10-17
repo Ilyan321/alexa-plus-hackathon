@@ -45,6 +45,51 @@ const parseDeviation = (text: string): number | null => {
   return m ? parseFloat(m[1]) : null;
 };
 
+// Generate a concise spoken summary for voice synthesis instead of reading raw code/telemetry
+const summarizeSpeechForVoice = (text: string): string => {
+  // Check if this is a CNC repair procedure
+  if (/REPAIR PROCEDURE|PRECISION DIAMOND HONING|G-CODE|RPM|boring bar/i.test(text)) {
+    const featureMatch = text.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
+    const feature = featureMatch ? featureMatch[1].replace(/_/g, ' ') : 'feature';
+    return `CNC repair procedure generated for ${feature}. Toolpath parameters and offset instructions are displayed on your console.`;
+  }
+
+  // Extract key metrology parameters if this is an inspection report
+  const featureMatch = text.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
+  const devVal = parseDeviation(text);
+  const isOutOfTol = /out of tolerance|exceeds|exceeded|requires repair|rework/i.test(text);
+  const isWithinTol = /within tolerance|nominal|passes tolerance|safe for/i.test(text);
+
+  if (featureMatch && devVal !== null) {
+    const featureReadable = featureMatch[1].replace(/_/g, ' ');
+    if (isOutOfTol) {
+      return `${featureReadable} measured ${devVal} microns, exceeding tolerance limit. Part requires rework. Would you like the CNC repair procedure?`;
+    }
+    if (isWithinTol) {
+      return `${featureReadable} measured ${devVal} microns. Within tolerance zone and safe for turbine assembly.`;
+    }
+  }
+
+  // If already reasonably short (< 25 words), speak it cleaned
+  const clean = text.replace(/[*#_`]/g, '').trim();
+  const words = clean.split(/\s+/);
+  if (words.length <= 25) {
+    return clean;
+  }
+
+  // Otherwise, take the first 1-2 key sentences
+  const sentences = clean.split(/(?<=[.?!])\s+/).filter(s => !s.startsWith('-') && !s.startsWith('G0') && !s.includes('http'));
+  if (sentences.length > 0) {
+    const summary = sentences.slice(0, 2).join(' ');
+    if (isOutOfTol && !summary.includes('procedure')) {
+      return `${summary} Would you like the CNC repair procedure?`;
+    }
+    return summary;
+  }
+
+  return clean.slice(0, 180);
+};
+
 // Normalize phonetic variations and accent pronunciations to exact aerospace metrology terms
 const normalizeAcousticSpeech = (rawText: string): string => {
   let text = rawText;
@@ -141,6 +186,7 @@ export default function VoiceAssistantPage() {
 
   // Voice engine refs
   const recognitionRef = useRef<any>(null);
+  const bargeInRecognitionRef = useRef<any>(null);
   const isRecordingIntentRef = useRef(false);
   const accumulatedTranscriptRef = useRef('');
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -153,6 +199,19 @@ export default function VoiceAssistantPage() {
   useEffect(() => {
     continuousHandsFreeRef.current = continuousHandsFree;
   }, [continuousHandsFree]);
+
+  // Stop barge-in listener safely
+  const stopBargeInListener = useCallback(() => {
+    if (bargeInRecognitionRef.current) {
+      try {
+        bargeInRecognitionRef.current.onend = null;
+        bargeInRecognitionRef.current.onerror = null;
+        bargeInRecognitionRef.current.onresult = null;
+        bargeInRecognitionRef.current.stop();
+      } catch {}
+      bargeInRecognitionRef.current = null;
+    }
+  }, []);
 
   // Call the Bedrock AgentCore backend
   const callAgent = useCallback(
@@ -171,7 +230,7 @@ export default function VoiceAssistantPage() {
     [sessionId]
   );
 
-  // Speak agent response aloud with continuous hands-free follow-up loop
+  // Speak agent response aloud with continuous hands-free follow-up loop and barge-in detection
   const speakResponse = useCallback(
     (text: string) => {
       if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -183,6 +242,7 @@ export default function VoiceAssistantPage() {
 
       const synth = window.speechSynthesis;
       synth.cancel();
+      stopBargeInListener();
 
       // If TTS is disabled, handle hands-free transition immediately
       if (!ttsEnabled) {
@@ -197,7 +257,9 @@ export default function VoiceAssistantPage() {
         synth.resume();
       }
 
-      const clean = text.replace(/[*#_`]/g, '').trim();
+      // Generate a concise executive summary for spoken voice, preventing verbose code reading
+      const spokenSummary = summarizeSpeechForVoice(text);
+      const clean = spokenSummary.replace(/[*#_`]/g, '').trim();
       if (!clean) {
         if (continuousHandsFreeRef.current && !isTextMode) {
           setTimeout(() => startRecording(true), 500);
@@ -205,7 +267,7 @@ export default function VoiceAssistantPage() {
         return;
       }
 
-      // Stop any microphone recording while assistant speaks to prevent EchoForge from hearing its own voice
+      // Stop normal microphone recording while assistant speaks
       isRecordingIntentRef.current = false;
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
@@ -234,11 +296,69 @@ export default function VoiceAssistantPage() {
         utterance.voice = preferredVoice;
       }
 
+      const startBargeInListener = () => {
+        const SpeechRecognition =
+          (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) return;
+
+        try {
+          const bargeIn = new SpeechRecognition();
+          bargeIn.continuous = true;
+          bargeIn.interimResults = true;
+          bargeIn.lang = 'en-US';
+
+          bargeIn.onresult = (event: any) => {
+            if (!isAssistantSpeakingRef.current) return;
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+              const transcript = event.results[i][0]?.transcript?.trim().toLowerCase() || '';
+              // Detect barge-in wake word or interrupt command
+              if (/\b(echo|alexa|stop|cancel|pause|quiet|halt|shut\s*up|wait)\b/i.test(transcript)) {
+                console.log('[EchoForge] Barge-in wake trigger detected:', transcript);
+                synth.cancel();
+                stopBargeInListener();
+                isAssistantSpeakingRef.current = false;
+                setDisplayPrompt('Listening...');
+                setSubStatus('Interrupted via Barge-In. Listening...');
+                if (followUpTimerRef.current) clearTimeout(followUpTimerRef.current);
+                setTimeout(() => {
+                  startRecording(true);
+                }, 100);
+                return;
+              }
+            }
+          };
+
+          bargeIn.onerror = (e: any) => {
+            if (e.error !== 'no-speech') {
+              console.warn('[EchoForge] Barge-in recognition note:', e.error);
+            }
+          };
+
+          bargeIn.onend = () => {
+            if (isAssistantSpeakingRef.current) {
+              setTimeout(() => {
+                if (isAssistantSpeakingRef.current) {
+                  startBargeInListener();
+                }
+              }, 100);
+            }
+          };
+
+          bargeIn.start();
+          bargeInRecognitionRef.current = bargeIn;
+        } catch (e) {
+          console.warn('[EchoForge] Unable to start barge-in listener:', e);
+        }
+      };
+
       utterance.onstart = () => {
         isAssistantSpeakingRef.current = true;
+        // Start lightweight wake word listener during speech output
+        startBargeInListener();
       };
 
       const handleSpeechFinished = () => {
+        stopBargeInListener();
         isAssistantSpeakingRef.current = false;
         if (continuousHandsFreeRef.current && !isTextMode) {
           if (followUpTimerRef.current) clearTimeout(followUpTimerRef.current);
@@ -257,7 +377,7 @@ export default function VoiceAssistantPage() {
 
       synth.speak(utterance);
     },
-    [ttsEnabled, isTextMode]
+    [ttsEnabled, isTextMode, stopBargeInListener]
   );
 
   // Workflow processing
@@ -353,10 +473,11 @@ export default function VoiceAssistantPage() {
     setSubStatus(null);
     setDeviationStatus('idle');
     setTextInput('');
+    stopBargeInListener();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
-  }, []);
+  }, [stopBargeInListener]);
 
   // Stop recording and send accumulated speech with acoustic normalization
   const stopAndCommitSpeech = useCallback(() => {
@@ -545,6 +666,7 @@ export default function VoiceAssistantPage() {
   useEffect(() => {
     return () => {
       isRecordingIntentRef.current = false;
+      stopBargeInListener();
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       if (recognitionRef.current) {
         try {
@@ -555,7 +677,7 @@ export default function VoiceAssistantPage() {
         window.speechSynthesis.cancel();
       }
     };
-  }, []);
+  }, [stopBargeInListener]);
 
   return (
     <div className="text-brand-900 font-sans min-h-screen w-full flex flex-col items-center relative selection:bg-brand-300 selection:text-white bg-brand-50 overflow-x-hidden">
