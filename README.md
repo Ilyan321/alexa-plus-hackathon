@@ -1,62 +1,147 @@
-# Amazon Developer Hackathon: Build, Ship, Shape 🚀
+# EchoForge 🛠️
+> **Autonomous Hands-Free Edge Metrology AI Assistant for Aerospace Manufacturing**  
+> *Submission for the Amazon Developer Hackathon: Build, Ship, Shape (2026)*
 
-> **Track:** Alexa+ (Next-Generation Ambient AI)  
-> **Challenge:** Self-Hosted MCP Server / Agent Skills Integration  
-> **Status:** Architecture & Research Phase  
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Track: Alexa+](https://img.shields.io/badge/Track-Alexa%2B-blue)](https://developer.amazon.com)
+[![AWS Bedrock](https://img.shields.io/badge/AWS-Bedrock%20AgentCore%20(Nova%20Pro)-orange)](https://aws.amazon.com/bedrock/)
+[![MCP Spec](https://img.shields.io/badge/MCP%20Spec-2025--11--25%20Streamable%20HTTP-success)](https://modelcontextprotocol.io)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-echoforge.aenox.me-brightgreen)](https://echoforge.aenox.me)
 
 ---
 
-## 🎯 Project Overview
-This repository contains our entry for the **Amazon Developer Hackathon: Build, Ship, Shape (2026)**.
+## 🚀 Live Deployments & Verification
+- **Web App / Simulated Alexa+ Console**: [https://echoforge.aenox.me](https://echoforge.aenox.me)
+- **Live Edge MCP Server (Render)**: [https://echoforge-mcp.onrender.com](https://echoforge-mcp.onrender.com)
+  - Health check: `GET https://echoforge-mcp.onrender.com/health`
+  - Streamable HTTP MCP Endpoint: `POST https://echoforge-mcp.onrender.com/mcp`
+- **Primary Hackathon Track**: **Alexa+** (Self-Hosted Streamable HTTP MCP Server & Simulated Alexa+ Interface)
+- **Mini-Challenges Entered**:
+  1. **AWS Builder**: AWS Bedrock AgentCore (Amazon Nova Pro), AWS Amplify SSR, IAM Security Policies.
+  2. **Open Source**: MIT Licensed repository with open-source MCP metrology bridge.
 
-- **Lead / Project Manager:** [Ilyan321](https://github.com/Ilyan321)
-- **Primary Track:** Alexa+ (Model Context Protocol / Agent Skills)
-- **Target Deadline:** October 24, 2026
+---
 
-## 📁 Repository Structure
+## 🎯 The Problem & Our Solution
+In high-precision aerospace manufacturing (turbine blades, engine flanges, casing bosses), coordinate-measuring machines (CMM) output complex legacy inspection files (e.g. `.DMO` / DMIS files) measured in fractions of a micron ($0.0001\text{ mm}$).
+
+Cleanroom CNC machinists wearing protective gloves and face shields cannot operate keyboards or touchscreens while handling delicate components. 
+
+**EchoForge** bridges this gap:
+1. **Hands-Free Ambient Alexa+ Voice UX**: High-res speech recognition with hands-free loop and real-time **barge-in wake word detection** ("Echo", "Alexa", "Stop", "Cancel").
+2. **Bedrock AgentCore Intelligence**: Powered by Amazon Nova Pro to interpret tolerance zones, calculate micron deviations, and autonomously invoke engineering repair workflows.
+3. **Spec-Compliant MCP Metrology Bridge**: Implements the official **MCP 2025-11-25 Streamable HTTP specification** (`/mcp`) to ingest `.DMO` inspection files and output exact CNC offsets and tooling programs.
+4. **Dynamic Speech Synthesis**: Fluid browser voice synthesis speaking physical engineering directives and micron tolerances with phonetic accuracy without hardcoded scripts.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    A["Operator Voice / UI<br/>(Alexa+ / Web)"] -->|"Speech Input / Prompt"| B["Next.js 14 Dashboard<br/>(echoforge.aenox.me)"]
+    B -->|"Autonomous Tool Orchestration"| C["AWS Bedrock AgentCore<br/>(Nova Pro Harness)"]
+    C <-->|"Streamable HTTP (2025-11-25)<br/>or REST Fallback"| D["EchoForge MCP Server<br/>(Render Edge Node)"]
+    D <-->|"Ingests & Parses"| E[("Legacy .DMO Factory<br/>Inspection Data")]
+    C -->|"Dynamic Verdict & CNC Offsets"| B
+    B -->|"Phonetic Voice Synthesis + Barge-in"| A
 ```
-├── planning/          # Hackathon rules, ideation, architecture, friction logs
-├── src/               # Core source code (MCP server / Agent Skills / simulation)
-├── docs/              # Submission notes, architecture diagrams, demo scripts
-└── README.md          # Project documentation
+
+---
+
+## ⚙️ Supported Aerospace Metrology Features
+
+| Inspection Feature | Nominal Dimension | Tolerance Zone | Engineering CNC Procedure |
+| :--- | :--- | :--- | :--- |
+| `UPPER_FLANGE` | $50.000\text{ mm}$ | $\pm 2.0\text{ µm}$ | CNC Re-Milling (Program 4A) with 1mm carbide end mill |
+| `MAIN_BORE_HOLE` | $15.000\text{ mm}$ | $\pm 0.1\text{ µm}$ | Precision Diamond Honing with Titanium boring bar at 3200 RPM |
+| `TURBINE_BLADE_ROOT` | $32.500\text{ mm}$ | $\pm 1.5\text{ µm}$ | EDM Spark Erosion (Cycle E-9) in dielectric fluid at 45A |
+| `INLET_NOZZLE_RING` | $78.200\text{ mm}$ | $\pm 2.5\text{ µm}$ | Micro-Abrasive CNC Blending & ceramic passivation coat |
+| `EXHAUST_STATOR_BOSS` | $24.000\text{ mm}$ | $\pm 1.8\text{ µm}$ | Facing Skim Cut & M24 Thread Re-Chasing |
+
+---
+
+## 📂 Repository Structure
+
+```
+.
+├── frontend-dashboard/       # Next.js 14 App Router UI & AWS Bedrock AgentCore API
+│   ├── src/app/
+│   │   ├── api/agent/        # AgentCore InvokeHarnessCommand & MCP tool interceptor
+│   │   ├── page.tsx          # Hands-free voice interface, barge-in wake word & dynamic TTS
+│   │   └── globals.css       # TailwindCSS styling & responsive layout
+│   └── package.json
+├── mcp-server/               # Self-hosted MCP Server (MCP Spec 2025-11-25)
+│   ├── server.py             # Streamable HTTP (/mcp), SSE (/sse), and REST endpoints
+│   ├── factory_data/         # Live CMM .DMO simulated telemetry
+│   ├── test_streamable_http.py # Automated test suite for MCP Spec 2025-11-25
+│   └── requirements.txt      # Python dependencies (mcp, starlette, uvicorn)
+├── planning/                 # Architecture, submission checklists, & friction logs
+│   ├── HACKATHON_REQUIREMENTS.md
+│   └── hackathon_overview.md
+├── LICENSE                   # Open-source MIT License
+└── README.md                 # Project documentation
 ```
 
-## 🏆 Goals & Strategy
-1. **Solve a High-Impact Problem:** Build a real-world, context-aware capability for Alexa+ that judges will remember.
-2. **Deep Technical Integration:** Fully implement the latest Model Context Protocol (MCP) spec (2025-11-25+ Streamable HTTP).
-3. **Friction Log Bonus:** Maintain an active friction log to capture developer experience insights for the Amazon developer team (up to +10% bonus).
-4. **AWS Builder / Open Source Mini-Challenge:** Integrate AWS services (e.g., Bedrock) to qualify for secondary prize tiers.
+---
 
-## 🚀 Deployment Verification
+## 🧪 Local Quickstart & Testing
 
-The EchoForge Next.js SSR frontend is deployed on AWS Amplify with a custom domain (`echoforge.aenox.me`) and connects end-to-end to AWS Bedrock AgentCore and the edge MCP metrology server.
-
-### 1. Check Amplify Build Status
+### 1. Edge MCP Server (Python 3.12+)
 ```bash
-aws amplify get-job \
-  --app-id d304e4j649i2te \
-  --branch-name main \
-  --job-id 3 \
-  --query 'job.summary.status' \
-  --output text
-```
-**Expected output:**
-```text
-SUCCEED
+cd mcp-server
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Run the test suite proving Streamable HTTP 2025-11-25 compliance
+python test_streamable_http.py
+
+# Launch local server (default: port 8000)
+python server.py
 ```
 
-### 2. Test Live API Endpoint
+### 2. Frontend Dashboard (Next.js 14)
+```bash
+cd frontend-dashboard
+npm install
+
+# Configure environment variables (.env.local)
+# APP_AWS_REGION=us-east-1
+# APP_AWS_ACCESS_KEY_ID=your_access_key
+# APP_AWS_SECRET_ACCESS_KEY=your_secret_key
+
+npm run dev
+# Open http://localhost:3000 in your browser
+```
+
+---
+
+## ⚡ Live API Verification
+
+You can query the live production deployment directly via curl:
+
 ```bash
 curl -s -X POST https://echoforge.aenox.me/api/agent \
      -H "Content-Type: application/json" \
-     -d '{"prompt":"What is the deviation of the UPPER_FLANGE?"}'
+     -d '{"prompt":"Query the live sensor deviation for UPPER_FLANGE and evaluate if it is within or out of tolerance."}'
 ```
-**Expected output:**
+
+And test the MCP Server Health:
+```bash
+curl -s https://echoforge-mcp.onrender.com/health
+```
+**Expected Response:**
 ```json
 {
-  "text": "The deviation for UPPER_FLANGE is 1.8 microns, which is within the 2.0 micron tolerance threshold. No repair procedure is needed at this moment.",
-  "sessionId": "...",
-  "stopReason": "end_turn"
+  "status": "healthy",
+  "service": "EchoForge Metrology Bridge",
+  "mcp_protocol_version": "2025-11-25",
+  "transports": ["streamable-http (/mcp)", "sse (/sse)"]
 }
 ```
-*(If deviation exceeds 2.0 microns, Bedrock AgentCore autonomously invokes the repair procedure tool and includes CNC offset suggestions in the response.)*
+
+---
+
+## 📄 License
+This project is open-source and released under the terms of the [MIT License](LICENSE).
