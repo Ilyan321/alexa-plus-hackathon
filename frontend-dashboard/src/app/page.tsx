@@ -18,6 +18,8 @@ import {
   Copy,
   Check,
   Radio,
+  Ear,
+  Headphones,
 } from 'lucide-react';
 
 type StatusType = 'idle' | 'listening' | 'processing' | 'normal' | 'error';
@@ -47,31 +49,38 @@ const parseDeviation = (text: string): number | null => {
 const normalizeAcousticSpeech = (rawText: string): string => {
   let text = rawText;
 
-  // Upper Flange phonetics
-  text = text.replace(/\b(upper|aper|oper|up\s*per)\s*(flange|falnge|flang|flanje|plange|plang|plant|french)\b/gi, 'UPPER_FLANGE');
+  // Upper Flange phonetics (e.g. "aper falnge", "upper flang", "up per plange", "oper flange")
+  text = text.replace(/\b(upper|aper|oper|apir|up\s*per|apa)\s*(flange|falnge|flang|flanje|plange|plang|plant|french|flange)\b/gi, 'UPPER_FLANGE');
+  text = text.replace(/\b(aper\s*falnge|upper\s*falnge|aper\s*flange)\b/gi, 'UPPER_FLANGE');
   text = text.replace(/\bupper\s*fl\w*\b/gi, 'UPPER_FLANGE');
 
-  // Main Bore Hole phonetics
-  text = text.replace(/\b(main|mane|men)\s*(bore|boar|boor|pour|four)\s*(hole|whole|hall|hold)?\b/gi, 'MAIN_BORE_HOLE');
-  text = text.replace(/\bm\s*a\s*i\s*n\s*b\s*o\s*r\s*e\s*h\s*o\s*l\s*e\b/gi, 'MAIN_BORE_HOLE');
-  text = text.replace(/\bbore\s*hole\b/gi, 'MAIN_BORE_HOLE');
+  // Main Bore Hole phonetics (e.g. "main bore", "mane boor hole", "men pour hole")
+  text = text.replace(/\b(main|mane|men|mine)\s*(bore|boar|boor|pour|four|pore)\s*(hole|whole|hall|hold)?\b/gi, 'MAIN_BORE_HOLE');
+  text = text.replace(/\bm\s*a\s*i\s*n\s*b\s*o\s*r\s*e(\s*h\s*o\s*l\s*e)?\b/gi, 'MAIN_BORE_HOLE');
+  text = text.replace(/\b(main\s*bore|bore\s*hole)\b/gi, 'MAIN_BORE_HOLE');
 
-  // Turbine Blade Root phonetics
-  text = text.replace(/\b(turbine|turbin|tarbine|turb)\s*(blade|blad|plate)?\s*(root|rout|route|wood)?\b/gi, 'TURBINE_BLADE_ROOT');
+  // Turbine Blade Root phonetics (e.g. "turbin blade root", "tarbine plate wood")
+  text = text.replace(/\b(turbine|turbin|tarbine|turb|terbine)\s*(blade|blad|plate)?\s*(root|rout|route|wood|rud)?\b/gi, 'TURBINE_BLADE_ROOT');
   text = text.replace(/\bblade\s*root\b/gi, 'TURBINE_BLADE_ROOT');
 
-  // Inlet Nozzle Ring phonetics
-  text = text.replace(/\b(inlet|inlett|in\s*let)\s*(nozzle|nosel|nozel|nasal)?\s*(ring|wring)?\b/gi, 'INLET_NOZZLE_RING');
+  // Inlet Nozzle Ring phonetics (e.g. "inlet nozzle", "inlett nosel ring")
+  text = text.replace(/\b(inlet|inlett|in\s*let)\s*(nozzle|nosel|nozel|nasal|nuzzle)?\s*(ring|wring)?\b/gi, 'INLET_NOZZLE_RING');
   text = text.replace(/\bnozzle\s*ring\b/gi, 'INLET_NOZZLE_RING');
 
-  // Exhaust Stator Boss phonetics
-  text = text.replace(/\b(exhaust|exaust|igzost)\s*(stator|stater|starter)?\s*(boss|bose|base)?\b/gi, 'EXHAUST_STATOR_BOSS');
+  // Exhaust Stator Boss phonetics (e.g. "exaust stator boss", "igzost starter base")
+  text = text.replace(/\b(exhaust|exaust|igzost|egzost)\s*(stator|stater|starter)?\s*(boss|bose|base|pos)?\b/gi, 'EXHAUST_STATOR_BOSS');
   text = text.replace(/\bstator\s*boss\b/gi, 'EXHAUST_STATOR_BOSS');
 
-  // Procedural conversational shortcuts
-  text = text.replace(/\b(yes|yeah|yep|sure|proceed|retrieve|repair|fix it|do it)\s*(procedure|repair|now)?\b/gi, (match) => {
+  // Procedural conversational shortcuts (e.g. "proceed repair", "yes", "retrieve repair procedure")
+  if (/^\s*(yes|yeah|yep|sure|proceed|fix\s*it|do\s*it|ok|okay)\.?\s*$/i.test(text.trim())) {
     return 'Yes, retrieve the CNC repair procedure.';
-  });
+  }
+  if (/\b(proceed\s*repair|proceed\s*with\s*repair|retrieve\s*repair|start\s*repair|repair\s*now)\b/i.test(text)) {
+    return 'Yes, retrieve the CNC repair procedure.';
+  }
+  if (/\b(yes|yeah|yep|sure|proceed)\b.*\b(repair|procedure|fix)\b/i.test(text)) {
+    return 'Yes, retrieve the CNC repair procedure.';
+  }
 
   return text;
 };
@@ -113,6 +122,7 @@ export default function VoiceAssistantPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [continuousHandsFree, setContinuousHandsFree] = useState(false);
 
   // Content states
   const [displayPrompt, setDisplayPrompt] = useState("I'm listening.");
@@ -128,6 +138,18 @@ export default function VoiceAssistantPage() {
   const accumulatedTranscriptRef = useRef('');
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
+  const continuousHandsFreeRef = useRef(false);
+  const isAssistantSpeakingRef = useRef(false);
+  const followUpTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Synchronize continuousHandsFree ref
+  useEffect(() => {
+    continuousHandsFreeRef.current = continuousHandsFree;
+    // If operator turns on hands-free and we're currently idle, auto-start listening
+    if (continuousHandsFree && !isRecording && !isProcessing && !isAssistantSpeakingRef.current && !isTextMode) {
+      startRecording();
+    }
+  }, [continuousHandsFree, isRecording, isProcessing, isTextMode]);
 
   // Call the Bedrock AgentCore backend
   const callAgent = useCallback(
@@ -146,20 +168,52 @@ export default function VoiceAssistantPage() {
     [sessionId]
   );
 
-  // Speak agent response aloud
+  // Speak agent response aloud with continuous hands-free follow-up loop
   const speakResponse = useCallback(
     (text: string) => {
-      if (!ttsEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-      
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+        if (continuousHandsFreeRef.current && !isTextMode) {
+          setTimeout(() => startRecording(true), 500);
+        }
+        return;
+      }
+
       const synth = window.speechSynthesis;
       synth.cancel();
+
+      // If TTS is disabled, handle hands-free transition immediately
+      if (!ttsEnabled) {
+        if (continuousHandsFreeRef.current && !isTextMode) {
+          setTimeout(() => startRecording(true), 600);
+        }
+        return;
+      }
+      
       // Workaround for Chrome bug where speechSynthesis gets stuck in paused state
       if (synth.paused) {
         synth.resume();
       }
 
       const clean = text.replace(/[*#_`]/g, '').trim();
-      if (!clean) return;
+      if (!clean) {
+        if (continuousHandsFreeRef.current && !isTextMode) {
+          setTimeout(() => startRecording(true), 500);
+        }
+        return;
+      }
+
+      // Stop any microphone recording while assistant speaks to prevent EchoForge from hearing its own voice
+      isRecordingIntentRef.current = false;
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+      setIsRecording(false);
 
       const utterance = new SpeechSynthesisUtterance(clean);
       utterance.rate = 1.0;
@@ -177,13 +231,30 @@ export default function VoiceAssistantPage() {
         utterance.voice = preferredVoice;
       }
 
+      utterance.onstart = () => {
+        isAssistantSpeakingRef.current = true;
+      };
+
+      const handleSpeechFinished = () => {
+        isAssistantSpeakingRef.current = false;
+        if (continuousHandsFreeRef.current && !isTextMode) {
+          if (followUpTimerRef.current) clearTimeout(followUpTimerRef.current);
+          followUpTimerRef.current = setTimeout(() => {
+            startRecording(true);
+          }, 450);
+        }
+      };
+
+      utterance.onend = handleSpeechFinished;
+
       utterance.onerror = (e) => {
         console.warn('SpeechSynthesis error:', e);
+        handleSpeechFinished();
       };
 
       synth.speak(utterance);
     },
-    [ttsEnabled]
+    [ttsEnabled, isTextMode]
   );
 
   // Workflow processing
@@ -252,6 +323,24 @@ export default function VoiceAssistantPage() {
     });
   }, []);
 
+  // Hands-free toggle handler
+  const toggleContinuousHandsFree = useCallback(() => {
+    setContinuousHandsFree((prev) => {
+      const next = !prev;
+      if (!next && isRecording) {
+        isRecordingIntentRef.current = false;
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.stop();
+          } catch {}
+        }
+        setIsRecording(false);
+      }
+      return next;
+    });
+  }, [isRecording]);
+
   // Reset state to ask another question without page reload
   const resetQuery = useCallback(() => {
     setAgentResponse(null);
@@ -264,7 +353,7 @@ export default function VoiceAssistantPage() {
     }
   }, []);
 
-  // Stop recording and send accumulated speech
+  // Stop recording and send accumulated speech with acoustic normalization
   const stopAndCommitSpeech = useCallback(() => {
     isRecordingIntentRef.current = false;
     if (silenceTimerRef.current) {
@@ -279,19 +368,23 @@ export default function VoiceAssistantPage() {
     }
 
     setIsRecording(false);
-    const finalCommit = accumulatedTranscriptRef.current.trim();
-    if (finalCommit) {
-      processWorkflow(finalCommit);
+    const rawCommit = accumulatedTranscriptRef.current.trim();
+    if (rawCommit) {
+      const normalizedCommit = normalizeAcousticSpeech(rawCommit);
+      processWorkflow(normalizedCommit);
     } else {
       setDisplayPrompt("I'm listening.");
       setSubStatus(null);
     }
   }, [processWorkflow]);
 
-  // Start speech recognition engine with resilient auto-restart
-  const startRecording = useCallback(() => {
+  // Start speech recognition engine with resilient auto-restart and hands-free awareness
+  const startRecording = useCallback((isFollowUp = false) => {
     if (isProcessing) return;
     if (typeof window === 'undefined') return;
+
+    // Do not start recording if assistant is actively speaking
+    if (isAssistantSpeakingRef.current) return;
 
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -304,19 +397,22 @@ export default function VoiceAssistantPage() {
     // Cancel any active speech synthesis so it doesn't transcribe itself
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+      isAssistantSpeakingRef.current = false;
     }
 
     accumulatedTranscriptRef.current = '';
     isRecordingIntentRef.current = true;
     setIsRecording(true);
-    setDisplayPrompt('Listening...');
-    setSubStatus('Recording... (speak your command)');
-    setAgentResponse(null);
+    setDisplayPrompt(isFollowUp ? 'Listening for follow-up...' : 'Listening...');
+    setSubStatus(isFollowUp ? 'Hands-Free: Listening for follow-up command...' : 'Recording... (speak your command)');
+    if (!isFollowUp) {
+      setAgentResponse(null);
+    }
     setDeviationStatus('listening');
 
     // Factory to spawn a fresh SpeechRecognition instance on every cycle
     const spawnRecognition = () => {
-      if (!isRecordingIntentRef.current) return;
+      if (!isRecordingIntentRef.current || isAssistantSpeakingRef.current) return;
 
       const rec = new SpeechRecognition();
       rec.continuous = false;
@@ -325,6 +421,9 @@ export default function VoiceAssistantPage() {
       rec.maxAlternatives = 1;
 
       rec.onresult = (event: any) => {
+        // Discard any audio if the assistant somehow started speaking
+        if (isAssistantSpeakingRef.current) return;
+
         let interim = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
@@ -334,12 +433,13 @@ export default function VoiceAssistantPage() {
           }
         }
 
-        const liveText = (accumulatedTranscriptRef.current + interim).trim();
-        if (liveText) {
-          setDisplayPrompt(liveText);
+        const rawLiveText = (accumulatedTranscriptRef.current + interim).trim();
+        if (rawLiveText) {
+          const calibratedLiveText = normalizeAcousticSpeech(rawLiveText);
+          setDisplayPrompt(calibratedLiveText);
         }
 
-        // Reset the silence timer: wait 2.5 seconds of quiet before auto-submitting
+        // Reset the silence timer: wait 2.2 seconds of quiet before auto-submitting
         if (silenceTimerRef.current) {
           clearTimeout(silenceTimerRef.current);
         }
@@ -347,7 +447,7 @@ export default function VoiceAssistantPage() {
           if (isRecordingIntentRef.current && (accumulatedTranscriptRef.current + interim).trim()) {
             stopAndCommitSpeech();
           }
-        }, 2500);
+        }, 2200);
       };
 
       rec.onerror = (event: any) => {
@@ -364,10 +464,10 @@ export default function VoiceAssistantPage() {
 
       rec.onend = () => {
         // Chrome ends the session on short pauses.
-        // We spawn a FRESH instance after 50ms so user can keep talking naturally without getting cut off!
-        if (isRecordingIntentRef.current) {
+        // We spawn a FRESH instance after 50ms so user can keep talking naturally without getting cut off
+        if (isRecordingIntentRef.current && !isAssistantSpeakingRef.current) {
           setTimeout(() => {
-            if (isRecordingIntentRef.current) {
+            if (isRecordingIntentRef.current && !isAssistantSpeakingRef.current) {
               spawnRecognition();
             }
           }, 60);
@@ -489,8 +589,29 @@ export default function VoiceAssistantPage() {
           </div>
         </div>
 
-        {/* Status pill & TTS toggle */}
+        {/* Header Controls: Hands-Free toggle, TTS toggle, Status Pill */}
         <div className="flex items-center gap-2">
+          {/* Hands-Free Loop Toggle */}
+          <button
+            type="button"
+            onClick={toggleContinuousHandsFree}
+            className={`px-3 py-1.5 rounded-full border text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${
+              continuousHandsFree
+                ? 'bg-brand-500 text-white border-brand-500 shadow-brand-500/30'
+                : 'bg-white/70 backdrop-blur-md border-brand-200 text-brand-700 hover:bg-white'
+            }`}
+            title={continuousHandsFree ? 'Disable continuous hands-free listening' : 'Enable continuous hands-free listening'}
+          >
+            {continuousHandsFree ? (
+              <Radio className="w-3.5 h-3.5 text-white animate-pulse" />
+            ) : (
+              <Ear className="w-3.5 h-3.5 text-brand-500" />
+            )}
+            <span>
+              Hands-Free: <strong className="uppercase">{continuousHandsFree ? 'ON' : 'OFF'}</strong>
+            </span>
+          </button>
+
           <button
             type="button"
             onClick={toggleTts}
