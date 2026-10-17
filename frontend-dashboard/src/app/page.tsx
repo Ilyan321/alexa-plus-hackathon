@@ -45,13 +45,33 @@ const parseDeviation = (text: string): number | null => {
   return m ? parseFloat(m[1]) : null;
 };
 
+// Format feature ID or acronyms for natural SpeechSynthesis so TTS does not spell them out letter-by-letter
+const formatSpokenPronunciation = (str: string): string => {
+  return str
+    .replace(/\bUPPER_FLANGE\b/g, 'Upper Flange')
+    .replace(/\bMAIN_BORE_HOLE\b/g, 'Main Bore Hole')
+    .replace(/\bTURBINE_BLADE_ROOT\b/g, 'Turbine Blade Root')
+    .replace(/\bINLET_NOZZLE_RING\b/g, 'Inlet Nozzle Ring')
+    .replace(/\bEXHAUST_STATOR_BOSS\b/g, 'Exhaust Stator Boss')
+    .replace(/\bCNC\b/g, 'C N C')
+    .replace(/\bNOMINAL\b/g, 'Nominal')
+    .replace(/\bOUT OF TOLERANCE\b/g, 'Out of tolerance')
+    .replace(/\bWITHIN TOLERANCE\b/g, 'Within tolerance')
+    .replace(/\b([A-Z]{2,})\b/g, (match) => {
+      // Convert any other all-caps words (e.g. RPM, VERDICT) to Title case unless standard 3-letter acronym
+      if (match === 'RPM' || match === 'CMM' || match === 'DMO') return match;
+      return match.charAt(0) + match.slice(1).toLowerCase();
+    })
+    .replace(/_/g, ' ');
+};
+
 // Generate a concise spoken summary for voice synthesis instead of reading raw code/telemetry
 const summarizeSpeechForVoice = (text: string): string => {
   // Check if this is a CNC repair procedure
   if (/REPAIR PROCEDURE|PRECISION DIAMOND HONING|G-CODE|RPM|boring bar/i.test(text)) {
     const featureMatch = text.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
-    const feature = featureMatch ? featureMatch[1].replace(/_/g, ' ') : 'feature';
-    return `CNC repair procedure generated for ${feature}. Toolpath parameters and offset instructions are displayed on your console.`;
+    const feature = featureMatch ? formatSpokenPronunciation(featureMatch[1]) : 'the part';
+    return `C N C repair procedure generated for ${feature}. Toolpath parameters and offset instructions are displayed on your console.`;
   }
 
   // Extract key metrology parameters if this is an inspection report
@@ -61,9 +81,9 @@ const summarizeSpeechForVoice = (text: string): string => {
   const isWithinTol = /within tolerance|nominal|passes tolerance|safe for/i.test(text);
 
   if (featureMatch && devVal !== null) {
-    const featureReadable = featureMatch[1].replace(/_/g, ' ');
+    const featureReadable = formatSpokenPronunciation(featureMatch[1]);
     if (isOutOfTol) {
-      return `${featureReadable} measured ${devVal} microns, exceeding tolerance limit. Part requires rework. Would you like the CNC repair procedure?`;
+      return `${featureReadable} measured ${devVal} microns, exceeding tolerance limit. Part requires rework. Would you like the C N C repair procedure?`;
     }
     if (isWithinTol) {
       return `${featureReadable} measured ${devVal} microns. Within tolerance zone and safe for turbine assembly.`;
@@ -74,20 +94,21 @@ const summarizeSpeechForVoice = (text: string): string => {
   const clean = text.replace(/[*#_`]/g, '').trim();
   const words = clean.split(/\s+/);
   if (words.length <= 25) {
-    return clean;
+    return formatSpokenPronunciation(clean);
   }
 
   // Otherwise, take the first 1-2 key sentences
   const sentences = clean.split(/(?<=[.?!])\s+/).filter(s => !s.startsWith('-') && !s.startsWith('G0') && !s.includes('http'));
   if (sentences.length > 0) {
     const summary = sentences.slice(0, 2).join(' ');
-    if (isOutOfTol && !summary.includes('procedure')) {
-      return `${summary} Would you like the CNC repair procedure?`;
+    let formatted = formatSpokenPronunciation(summary);
+    if (isOutOfTol && !formatted.includes('procedure')) {
+      return `${formatted} Would you like the C N C repair procedure?`;
     }
-    return summary;
+    return formatted;
   }
 
-  return clean.slice(0, 180);
+  return formatSpokenPronunciation(clean.slice(0, 180));
 };
 
 // Normalize phonetic variations and accent pronunciations to exact aerospace metrology terms
