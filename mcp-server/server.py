@@ -55,7 +55,8 @@ def get_deviation(feature_name: str) -> str:
         with open(DMO_FILE_PATH, 'r') as file:
             content = file.read()
         blocks = content.split('FILNAM/')
-        for block in blocks:
+        # Scan in reverse order so the most recent inspection reading for any part is always retrieved
+        for block in reversed(blocks):
             lines = [l.strip() for l in block.strip().split('\n') if l.strip()]
             if lines and (lines[0] == clean_name or clean_name in lines[0]):
                 dev_match = re.search(r'DEVIATION/\s*([\d\.\-]+)', block)

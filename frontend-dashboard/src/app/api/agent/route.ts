@@ -117,6 +117,8 @@ export async function POST(req: NextRequest) {
 
       if (toolResult) {
         // Send tool output back to Bedrock Harness to produce final natural language analysis
+        const isHistoryExplicitlyRequested = /\b(history|trend|past readings|previous readings|log|audit|all readings)\b/i.test(prompt);
+
         const followUpCommand = new InvokeHarnessCommand({
           harnessArn: HARNESS_ARN,
           runtimeSessionId: currentSessionId,
@@ -125,7 +127,9 @@ export async function POST(req: NextRequest) {
               role: 'user',
               content: [
                 {
-                  text: `The factory sensor responded with: "${toolResult}". Please provide the final metrology verdict, state clearly the measured deviation vs tolerance zone, and if it exceeds tolerance, ask if the operator wants the CNC repair procedure.`
+                  text: isHistoryExplicitlyRequested
+                    ? `The operator explicitly asked for history/trends. The factory sensor responded with: "${toolResult}". Summarize the readings concisely.`
+                    : `The factory sensor responded with: "${toolResult}". Provide ONLY the single latest active metrology verdict for ${feature}. Do NOT list historical timestamps, past test runs, or multiple audit rows unless specifically asked. State clearly the current measured deviation vs the tolerance zone, state if it is within or out of tolerance, and if out of tolerance, ask if the operator wants the CNC repair procedure.`
                 }
               ]
             }
