@@ -88,6 +88,8 @@ flowchart LR
 
 ## 🧪 Local Quickstart & Testing
 
+> 📖 **Looking for a detailed step-by-step developer walkthrough?** See the full [Local Setup & Troubleshooting Guide](docs/SETUP.md).
+
 ### 1. Edge MCP Server (Python 3.12+)
 ```bash
 cd mcp-server
