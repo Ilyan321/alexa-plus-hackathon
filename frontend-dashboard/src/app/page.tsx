@@ -618,6 +618,9 @@ export default function VoiceAssistantPage() {
               // Detect barge-in wake word or interrupt command
               if (/\b(echo|alexa|stop|cancel|pause|quiet|halt|shut\s*up|wait)\b/i.test(transcript)) {
                 console.log('[EchoForge] Barge-in wake trigger detected:', transcript);
+                // Nullify utterance callbacks so synth.cancel() does NOT fire duplicate finish/restart cycles
+                utterance.onend = null;
+                utterance.onerror = null;
                 synth.cancel();
                 isAssistantSpeakingRef.current = false;
                 stopBargeInListener();
