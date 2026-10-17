@@ -673,7 +673,7 @@ export default function VoiceAssistantPage() {
               <button
                 key={part.id}
                 type="button"
-                onClick={() => processWorkflow(`What is the deviation of the ${part.id}? If it exceeds tolerance, retrieve the repair procedure.`)}
+                onClick={() => processWorkflow(`Query the live sensor deviation for ${part.id} and evaluate if it is within or out of tolerance.`)}
                 disabled={isProcessing}
                 className="px-3 py-1.5 rounded-full bg-white/80 hover:bg-white border border-brand-200/90 text-brand-800 hover:text-brand-950 text-xs font-medium shadow-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
               >
