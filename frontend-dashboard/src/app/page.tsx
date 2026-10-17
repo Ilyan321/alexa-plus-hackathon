@@ -15,6 +15,8 @@ import {
   VolumeX,
   RotateCcw,
   Wrench,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 type StatusType = 'idle' | 'listening' | 'processing' | 'normal' | 'error';
@@ -39,6 +41,37 @@ const parseDeviation = (text: string): number | null => {
     text.match(/(\d+(?:\.\d+)?)\s*micron/i);
   return m ? parseFloat(m[1]) : null;
 };
+
+// Code block with copy-to-clipboard button
+function CodeBlock({ code, language }: { code: string; language?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="relative group my-3 rounded-xl overflow-hidden border border-brand-800 bg-brand-950/95 shadow-md">
+      <div className="flex items-center justify-between px-3.5 py-1.5 bg-brand-900/60 border-b border-brand-800/80 text-[11px] font-mono text-brand-300">
+        <span>{language ? language.toUpperCase() : 'CODE / TELEMETRY'}</span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="flex items-center gap-1 px-2 py-0.5 rounded bg-brand-800 hover:bg-brand-700 text-brand-200 transition-colors cursor-pointer"
+          title="Copy code"
+        >
+          {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+          <span>{copied ? 'Copied' : 'Copy'}</span>
+        </button>
+      </div>
+      <pre className="p-3.5 overflow-x-auto text-xs font-mono text-brand-100 leading-relaxed">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
 
 export default function VoiceAssistantPage() {
   // Mode states
@@ -381,10 +414,10 @@ export default function VoiceAssistantPage() {
   }, []);
 
   return (
-    <div className="text-brand-900 font-sans h-screen w-screen flex flex-col items-center justify-center relative selection:bg-brand-300 selection:text-white bg-brand-50 overflow-y-auto">
+    <div className="text-brand-900 font-sans min-h-screen w-full flex flex-col items-center relative selection:bg-brand-300 selection:text-white bg-brand-50 overflow-x-hidden">
       {/* Dynamic Background Tint on Tolerance Status */}
       <div
-        className={`absolute inset-0 pointer-events-none transition-colors duration-1000 z-0 ${
+        className={`fixed inset-0 pointer-events-none transition-colors duration-1000 z-0 ${
           deviationStatus === 'error'
             ? 'bg-red-500/10'
             : deviationStatus === 'normal'
@@ -394,7 +427,7 @@ export default function VoiceAssistantPage() {
       />
 
       {/* Background Artistic Blobs from assistant_interface.html */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-40 z-0">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-40 z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-brand-200 mix-blend-multiply filter blur-3xl animate-blob" />
         <div
           className="absolute top-[20%] right-[-15%] w-[45vw] h-[45vw] rounded-full bg-brand-300 mix-blend-multiply filter blur-3xl animate-blob"
@@ -407,7 +440,7 @@ export default function VoiceAssistantPage() {
       </div>
 
       {/* Top Header Badge */}
-      <header className="absolute top-6 left-6 right-6 flex items-center justify-between z-20">
+      <header className="sticky top-0 left-0 right-0 w-full backdrop-blur-md bg-white/40 border-b border-brand-200/40 px-6 py-4 flex items-center justify-between z-30 transition-all">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-md">
             <Sparkles className="w-4 h-4" />
@@ -475,9 +508,9 @@ export default function VoiceAssistantPage() {
       </header>
 
       {/* Main Content Container */}
-      <main className="z-10 w-full max-w-3xl px-6 flex flex-col items-center justify-center relative text-center" style={{minHeight: '100vh'}}>
+      <main className="z-10 w-full max-w-3xl px-6 py-8 flex flex-col items-center justify-center flex-1 relative text-center">
         {/* Text Display / Transcript Area */}
-        <div className="min-h-[140px] mb-8 flex flex-col justify-end items-center w-full px-4">
+        <div className="min-h-[100px] mb-6 flex flex-col justify-end items-center w-full px-4">
           <h1
             id="transcript-display"
             className={`text-3xl sm:text-4xl md:text-5xl font-light text-brand-800 leading-tight transition-all duration-300 max-w-2xl ${
@@ -507,20 +540,21 @@ export default function VoiceAssistantPage() {
         {/* Agent Response Card (if returned) */}
         {agentResponse && !isRecording && (
           <div
-            className={`mb-8 max-w-xl w-full p-5 rounded-3xl backdrop-blur-xl border shadow-xl text-left transition-all duration-500 animate-fadeIn ${
+            className={`mb-6 max-w-2xl w-full rounded-3xl backdrop-blur-xl border shadow-xl flex flex-col text-left transition-all duration-500 animate-fadeIn ${
               deviationStatus === 'error'
-                ? 'bg-red-50/90 border-red-200 text-red-950 shadow-red-500/10'
-                : 'bg-white/80 border-brand-200 text-brand-950 shadow-brand-500/10'
+                ? 'bg-red-50/95 border-red-200/80 text-red-950 shadow-red-500/10'
+                : 'bg-white/90 border-brand-200/80 text-brand-950 shadow-brand-500/10'
             }`}
           >
-            <div className="flex items-center justify-between mb-3 border-b border-brand-200/50 pb-2">
+            {/* Header inside response card */}
+            <div className="flex items-center justify-between p-4 px-6 border-b border-brand-200/50 bg-white/40 rounded-t-3xl backdrop-blur-sm sticky top-0 z-10">
               <div className="flex items-center gap-2">
                 {deviationStatus === 'error' ? (
                   <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
                 ) : (
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 )}
-                <span className="text-xs font-bold uppercase tracking-wider text-brand-600">
+                <span className="text-xs font-bold uppercase tracking-wider text-brand-700">
                   AgentCore Intelligence
                 </span>
               </div>
@@ -546,46 +580,76 @@ export default function VoiceAssistantPage() {
               </div>
             </div>
 
-            <div className="prose prose-sm max-w-none text-brand-900 leading-relaxed text-left">
+            {/* Scrollable Response Body */}
+            <div className="p-6 max-h-[50vh] overflow-y-auto space-y-3 prose prose-sm max-w-none text-brand-950 leading-relaxed text-left">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                  strong: ({ children }) => <strong className="font-semibold text-brand-900">{children}</strong>,
-                  ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
-                  ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
-                  li: ({ children }) => <li className="text-sm">{children}</li>,
+                  p: ({ children }) => <p className="mb-2.5 last:mb-0 text-sm leading-relaxed">{children}</p>,
+                  strong: ({ children }) => (
+                    <strong className="font-semibold text-brand-950 bg-brand-100/40 px-1 py-0.5 rounded">
+                      {children}
+                    </strong>
+                  ),
+                  ul: ({ children }) => <ul className="list-disc list-inside mb-3 space-y-1 text-sm">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-sm">{children}</ol>,
+                  li: ({ children }) => <li className="text-sm leading-relaxed">{children}</li>,
                   code: ({ children, className }) => {
-                    const isBlock = className?.includes('language-');
-                    return isBlock ? (
-                      <pre className="bg-gray-100 rounded-lg p-3 mb-2 overflow-x-auto text-xs font-mono"><code>{children}</code></pre>
-                    ) : (
-                      <code className="bg-gray-100 rounded px-1 py-0.5 text-xs font-mono">{children}</code>
+                    const match = /language-(\w+)/.exec(className || '');
+                    const isBlock = Boolean(className?.includes('language-') || String(children).includes('\n'));
+                    if (isBlock) {
+                      return <CodeBlock code={String(children).replace(/\n$/, '')} language={match ? match[1] : undefined} />;
+                    }
+                    return (
+                      <code className="bg-brand-100/70 text-brand-900 border border-brand-200/60 rounded px-1.5 py-0.5 text-xs font-mono font-medium">
+                        {children}
+                      </code>
                     );
                   },
-                  h1: ({ children }) => <h1 className="text-lg font-bold mb-2 text-brand-900">{children}</h1>,
-                  h2: ({ children }) => <h2 className="text-base font-bold mb-1.5 text-brand-900">{children}</h2>,
-                  h3: ({ children }) => <h3 className="text-sm font-semibold mb-1 text-brand-800">{children}</h3>,
-                  blockquote: ({ children }) => <blockquote className="border-l-4 border-brand-300 pl-3 italic text-brand-700 mb-2">{children}</blockquote>,
-                  hr: () => <hr className="border-brand-200 my-3" />,
+                  h1: ({ children }) => <h1 className="text-lg font-bold mb-2.5 text-brand-950 border-b border-brand-200 pb-1">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-base font-bold mb-2 text-brand-900">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-sm font-semibold mb-1.5 text-brand-800">{children}</h3>,
+                  blockquote: ({ children }) => (
+                    <blockquote className="border-l-4 border-brand-500 bg-brand-50/60 p-2.5 rounded-r-lg italic text-brand-800 my-2 text-sm">
+                      {children}
+                    </blockquote>
+                  ),
+                  table: ({ children }) => (
+                    <div className="overflow-x-auto my-3 border border-brand-200 rounded-xl">
+                      <table className="min-w-full divide-y divide-brand-200 text-xs text-left">
+                        {children}
+                      </table>
+                    </div>
+                  ),
+                  th: ({ children }) => (
+                    <th className="px-3 py-2 bg-brand-100/50 font-semibold text-brand-900 uppercase tracking-wider text-[11px]">
+                      {children}
+                    </th>
+                  ),
+                  td: ({ children }) => (
+                    <td className="px-3 py-2 border-t border-brand-100 text-brand-800 font-mono text-xs">
+                      {children}
+                    </td>
+                  ),
+                  hr: () => <hr className="border-brand-200 my-3.5" />,
                 }}
               >
                 {agentResponse}
               </ReactMarkdown>
-            </div>
 
-            {/* Proactive 1-click Repair Procedure Button */}
-            {/would you like.*repair procedure|retrieve the cnc repair procedure\?/i.test(agentResponse) && (
-              <button
-                type="button"
-                onClick={() => processWorkflow('Yes, retrieve the CNC repair procedure for UPPER_FLANGE.')}
-                disabled={isProcessing}
-                className="w-full mt-4 py-3 px-4 rounded-2xl bg-brand-500 hover:bg-brand-600 active:scale-[0.98] text-white text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 shadow-md shadow-brand-500/20 transition-all cursor-pointer disabled:opacity-50"
-              >
-                <Wrench className="w-4 h-4" />
-                <span>🔧 Retrieve CNC Repair Procedure</span>
-              </button>
-            )}
+              {/* Proactive 1-click Repair Procedure Button */}
+              {/would you like.*repair procedure|retrieve the cnc repair procedure\?/i.test(agentResponse) && (
+                <button
+                  type="button"
+                  onClick={() => processWorkflow('Yes, retrieve the CNC repair procedure for UPPER_FLANGE.')}
+                  disabled={isProcessing}
+                  className="w-full mt-3 py-3 px-4 rounded-2xl bg-brand-500 hover:bg-brand-600 active:scale-[0.98] text-white text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 shadow-md shadow-brand-500/20 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Wrench className="w-4 h-4" />
+                  <span>🔧 Retrieve CNC Repair Procedure</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
 

@@ -42,29 +42,22 @@
 
 ## Issue #4: UI Viewport Overflow, Vertical Centering & Unscrollable Layout
 * **Severity**: High (Usability & Accessibility)
-* **Status**: Open
-* **Reported By**: User (Screenshot from 2026-10-15 23:01 PKT)
-* **Description**:
-  * The main page container uses a vertically centered flex layout (`h-full` / `overflow-hidden` or rigid bounds) without an active scroll container.
-  * When AgentCore returns a detailed multi-paragraph report (e.g. metrology audit, flight pass/fail checklist, or full CNC G-code program), the card height exceeds the viewport height (100vh).
-  * Consequently, the top of the card—including the "EchoForge OS" header, the "AgentCore Intelligence" badge, and the "Ask Again" / "Replay" buttons—gets pushed above the top of the screen.
-  * The user is unable to scroll up to see the top controls or scroll down to see the bottom actions.
-* **Production Requirements**:
-  1. Convert `<main>` container to a scrollable layout (`min-h-screen overflow-y-auto` instead of fixed `h-full`).
-  2. Implement an internal scroll container on the Agent Response Card (`max-h-[60vh] overflow-y-auto` with a clean custom scrollbar) so the card never expands beyond the screen.
-  3. Keep the header navigation and "Ask Again" action buttons sticky/pinned so operators never lose navigation context.
+* **Status**: ✅ **CLOSED / RESOLVED** (2026-10-17)
+* **Reported By**: User
+* **Resolution**:
+  * Converted main page layout to `min-h-screen w-full overflow-x-hidden` with natural responsive document flow.
+  * Replaced `overflow: hidden` on `body` with smooth custom telemetry scrollbars (`globals.css`).
+  * Made the top navigation bar `sticky top-0 z-30` with backdrop blur, preventing it from being pushed off-screen.
+  * Added an internal scroll container on the Agent Response Card (`max-h-[50vh] overflow-y-auto`) with a pinned top bar for "Replay" and "Ask Again" action buttons.
 
 ---
 
 ## Issue #5: Unrendered Raw Markdown (`**bold**`, lists, code blocks) in Response Card
 * **Severity**: Medium (Readability & Aesthetics)
-* **Status**: Open
-* **Reported By**: User (Screenshot from 2026-10-15 23:01 PKT)
-* **Description**:
-  * AgentCore responses frequently contain standard markdown formatting (e.g. `**Date:**`, `**Flight Certification Tolerance Check:**`, `- bullet points`, and code blocks).
-  * Currently, the UI renders the response inside `<p className="whitespace-pre-wrap">{agentResponse}</p>`, displaying raw asterisks, backticks, and dashes without typographic rendering.
-* **Production Requirements**:
-  1. Add a rich markdown renderer (e.g. `react-markdown` with `remark-gfm` or formatted industrial text component) in `page.tsx`.
-  2. Render bold key-value pairs (`**Key:** Value`) as crisp telemetry labels.
-  3. Format bullet lists as industrial checklist items with Pass/Fail badges.
-  4. Render CNC G-code and program blocks in high-contrast monospaced code blocks with a copy button.
+* **Status**: ✅ **CLOSED / RESOLVED** (2026-10-17)
+* **Reported By**: User
+* **Resolution**:
+  * Rendered markdown using `react-markdown` with `remark-gfm` tables and checklists.
+  * Styled key metrics and bold text with crisp telemetry badge highlighting (`bg-brand-100/40 font-semibold`).
+  * Added custom `CodeBlock` component for monospaced CNC G-code and telemetry blocks with an interactive one-click "Copy" button.
+  * Formatted tables, blockquotes, and lists with industrial aesthetic styling.

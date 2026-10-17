@@ -10,8 +10,27 @@
 body {
   background-color: #fffaf5;
   color: #7e2a0b;
-  overflow: hidden;
-  user-select: none;
+  overflow-y: auto;
+  min-height: 100vh;
+}
+
+/* Custom telemetry scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 107, 0, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 107, 0, 0.5);
 }
 
 /* Artistic Ripple Effect for Recording State */
