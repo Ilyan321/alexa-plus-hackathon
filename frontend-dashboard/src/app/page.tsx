@@ -17,6 +17,7 @@ import {
   Wrench,
   Copy,
   Check,
+  Radio,
 } from 'lucide-react';
 
 type StatusType = 'idle' | 'listening' | 'processing' | 'normal' | 'error';
@@ -40,6 +41,39 @@ const parseDeviation = (text: string): number | null => {
     text.match(/(?:measured|current|reading|deviation(?: of| is|:)?|specifically at)\s*(\d+(?:\.\d+)?)\s*micron/i) ||
     text.match(/(\d+(?:\.\d+)?)\s*micron/i);
   return m ? parseFloat(m[1]) : null;
+};
+
+// Normalize phonetic variations and accent pronunciations to exact aerospace metrology terms
+const normalizeAcousticSpeech = (rawText: string): string => {
+  let text = rawText;
+
+  // Upper Flange phonetics
+  text = text.replace(/\b(upper|aper|oper|up\s*per)\s*(flange|falnge|flang|flanje|plange|plang|plant|french)\b/gi, 'UPPER_FLANGE');
+  text = text.replace(/\bupper\s*fl\w*\b/gi, 'UPPER_FLANGE');
+
+  // Main Bore Hole phonetics
+  text = text.replace(/\b(main|mane|men)\s*(bore|boar|boor|pour|four)\s*(hole|whole|hall|hold)?\b/gi, 'MAIN_BORE_HOLE');
+  text = text.replace(/\bm\s*a\s*i\s*n\s*b\s*o\s*r\s*e\s*h\s*o\s*l\s*e\b/gi, 'MAIN_BORE_HOLE');
+  text = text.replace(/\bbore\s*hole\b/gi, 'MAIN_BORE_HOLE');
+
+  // Turbine Blade Root phonetics
+  text = text.replace(/\b(turbine|turbin|tarbine|turb)\s*(blade|blad|plate)?\s*(root|rout|route|wood)?\b/gi, 'TURBINE_BLADE_ROOT');
+  text = text.replace(/\bblade\s*root\b/gi, 'TURBINE_BLADE_ROOT');
+
+  // Inlet Nozzle Ring phonetics
+  text = text.replace(/\b(inlet|inlett|in\s*let)\s*(nozzle|nosel|nozel|nasal)?\s*(ring|wring)?\b/gi, 'INLET_NOZZLE_RING');
+  text = text.replace(/\bnozzle\s*ring\b/gi, 'INLET_NOZZLE_RING');
+
+  // Exhaust Stator Boss phonetics
+  text = text.replace(/\b(exhaust|exaust|igzost)\s*(stator|stater|starter)?\s*(boss|bose|base)?\b/gi, 'EXHAUST_STATOR_BOSS');
+  text = text.replace(/\bstator\s*boss\b/gi, 'EXHAUST_STATOR_BOSS');
+
+  // Procedural conversational shortcuts
+  text = text.replace(/\b(yes|yeah|yep|sure|proceed|retrieve|repair|fix it|do it)\s*(procedure|repair|now)?\b/gi, (match) => {
+    return 'Yes, retrieve the CNC repair procedure.';
+  });
+
+  return text;
 };
 
 // Code block with copy-to-clipboard button
