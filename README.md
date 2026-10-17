@@ -7,6 +7,7 @@
 [![AWS Bedrock](https://img.shields.io/badge/AWS-Bedrock%20AgentCore%20(Nova%20Pro)-orange)](https://aws.amazon.com/bedrock/)
 [![MCP Spec](https://img.shields.io/badge/MCP%20Spec-2025--11--25%20Streamable%20HTTP-success)](https://modelcontextprotocol.io)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-echoforge.aenox.me-brightgreen)](https://echoforge.aenox.me)
+[![Friction Log](https://img.shields.io/badge/Amazon%20Dev%20Bonus-Friction%20Log%20Included-purple)](planning/FRICTION_LOG.md)
 
 ---
 
