@@ -8,38 +8,38 @@ DMO_FILE = os.path.join(OUTPUT_DIR, "inspection_latest.dmo")
 def create_dmo_file():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
-    # Simulate slightly fluctuating metrology data
-    upper_flange_dev = round(random.uniform(1.70, 2.10), 3)
-    bore_hole_dev = round(random.uniform(0.01, 0.05), 3)
+    parts = {
+        "UPPER_FLANGE": {"nom": 50.000, "dev": round(random.uniform(1.65, 2.25), 3), "tol": 2.000},
+        "MAIN_BORE_HOLE": {"nom": 15.000, "dev": round(random.uniform(0.04, 0.15), 3), "tol": 0.100},
+        "TURBINE_BLADE_ROOT": {"nom": 32.500, "dev": round(random.uniform(1.10, 1.80), 3), "tol": 1.500},
+        "INLET_NOZZLE_RING": {"nom": 78.200, "dev": round(random.uniform(1.80, 2.90), 3), "tol": 2.500},
+        "EXHAUST_STATOR_BOSS": {"nom": 24.000, "dev": round(random.uniform(1.00, 2.10), 3), "tol": 1.800},
+    }
     
-    dmo_content = f"""
-START_INSPECTION_ROUTINE/ AERO_BRACKET_V4
-DATE/ 2026-10-09
-MACHINE/ HEXAGON_GLOBAL_S
-
-FILNAM/ UPPER_FLANGE
-NOMINAL/ 50.000
-MEASURED/ {50.000 + upper_flange_dev}
-DEVIATION/ {upper_flange_dev}
-TOLERANCE_ZONE/ 2.000
-
-FILNAM/ MAIN_BORE_HOLE
-NOMINAL/ 15.000
-MEASURED/ {15.000 + bore_hole_dev}
-DEVIATION/ {bore_hole_dev}
-TOLERANCE_ZONE/ 0.100
-
-END_INSPECTION/
-    """
+    lines = [
+        "START_INSPECTION_ROUTINE/ AERO_BRACKET_V4",
+        "DATE/ 2026-10-17",
+        "MACHINE/ HEXAGON_GLOBAL_S",
+        ""
+    ]
+    for name, data in parts.items():
+        lines.extend([
+            f"FILNAM/ {name}",
+            f"NOMINAL/ {data['nom']:.3f}",
+            f"MEASURED/ {data['nom'] + (data['dev']/1000.0):.4f}",
+            f"DEVIATION/ {data['dev']:.3f}",
+            f"TOLERANCE_ZONE/ {data['tol']:.3f}",
+            ""
+        ])
+    lines.append("END_INSPECTION/")
     
     with open(DMO_FILE, 'w') as f:
-        f.write(dmo_content.strip())
+        f.write("\n".join(lines).strip())
         
-    print(f"Generated new mock DMO file at {DMO_FILE} | Upper Flange Dev: {upper_flange_dev}")
+    print(f"Generated new mock DMO file at {DMO_FILE} for 5 aerospace parts.")
 
 if __name__ == "__main__":
-    print("Starting Factory Simulator...")
+    print("Starting Factory Simulator for 5 aerospace parts...")
     while True:
         create_dmo_file()
-        # Overwrite the file every 60 seconds to simulate a live factory
         time.sleep(60)
