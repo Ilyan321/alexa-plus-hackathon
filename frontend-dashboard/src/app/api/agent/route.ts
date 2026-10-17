@@ -62,6 +62,82 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Detect if Nova Pro outputted an action intent to invoke RenderServerTarget
+    const toolCallMatch = fullText.match(/RenderServerTarget___(queryDeviation|getRepairProcedure)[^\w\d{]*(\{[^}]+\})/i) ||
+      fullText.match(/Action:\s*RenderServerTarget___(queryDeviation|getRepairProcedure)[\s\S]*?(?:Parameters|Input)?:\s*(\{[^}]+\})/i);
+
+    if (toolCallMatch) {
+      const toolName = toolCallMatch[1];
+      let args: any = {};
+      try {
+        args = JSON.parse(toolCallMatch[2]);
+      } catch {
+        const featureMatch = fullText.match(/"feature_name"\s*:\s*"([^"]+)"/i);
+        if (featureMatch) args.feature_name = featureMatch[1];
+      }
+
+      const feature = (args.feature_name || 'UPPER_FLANGE').toUpperCase();
+      let toolResult = '';
+
+      if (toolName.toLowerCase().includes('query')) {
+        const queryRes = await fetch('https://echoforge-mcp.onrender.com/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ feature_name: feature }),
+        }).then((r) => r.json()).catch(() => null);
+
+        if (queryRes?.deviation_info) {
+          toolResult = queryRes.deviation_info;
+        }
+      } else if (toolName.toLowerCase().includes('repair')) {
+        const devMicrons = parseFloat(args.deviation_microns || 2.1);
+        const repairRes = await fetch('https://echoforge-mcp.onrender.com/repair', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ feature_name: feature, deviation_microns: devMicrons }),
+        }).then((r) => r.json()).catch(() => null);
+
+        if (repairRes?.repair_procedure) {
+          toolResult = repairRes.repair_procedure;
+        }
+      }
+
+      if (toolResult) {
+        // Send tool output back to Bedrock Harness to produce final natural language analysis
+        const followUpCommand = new InvokeHarnessCommand({
+          harnessArn: HARNESS_ARN,
+          runtimeSessionId: currentSessionId,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  text: `The factory sensor responded with: "${toolResult}". Please provide the final metrology verdict, state clearly the measured deviation vs tolerance zone, and if it exceeds tolerance, ask if the operator wants the CNC repair procedure.`
+                }
+              ]
+            }
+          ],
+        });
+
+        const followUpRes = await client.send(followUpCommand);
+        let synthesizedText = '';
+        if (followUpRes.stream) {
+          for await (const event of followUpRes.stream) {
+            if (event.contentBlockDelta?.delta?.text) {
+              synthesizedText += event.contentBlockDelta.delta.text;
+            }
+          }
+        }
+
+        if (synthesizedText && !synthesizedText.includes('RenderServerTarget___')) {
+          fullText = synthesizedText;
+        } else {
+          // Fallback clean structured report if Nova Pro repeats action string
+          fullText = `### Metrology Report: ${feature}\n\n${toolResult}`;
+        }
+      }
+    }
+
     return NextResponse.json({
       text: fullText,
       sessionId: currentSessionId,
