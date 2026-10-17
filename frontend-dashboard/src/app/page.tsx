@@ -422,7 +422,7 @@ export default function VoiceAssistantPage() {
       if (!isRecordingIntentRef.current || isAssistantSpeakingRef.current) return;
 
       const rec = new SpeechRecognition();
-      rec.continuous = false;
+      rec.continuous = true;
       rec.interimResults = true;
       rec.lang = 'en-US';
       rec.maxAlternatives = 1;
@@ -446,7 +446,7 @@ export default function VoiceAssistantPage() {
           setDisplayPrompt(calibratedLiveText);
         }
 
-        // Reset the silence timer: wait 2.2 seconds of quiet before auto-submitting
+        // Reset the silence timer: wait 1.8 seconds of quiet before auto-submitting
         if (silenceTimerRef.current) {
           clearTimeout(silenceTimerRef.current);
         }
@@ -454,7 +454,7 @@ export default function VoiceAssistantPage() {
           if (isRecordingIntentRef.current && (accumulatedTranscriptRef.current + interim).trim()) {
             stopAndCommitSpeech();
           }
-        }, 2200);
+        }, 1800);
       };
 
       rec.onerror = (event: any) => {
@@ -470,14 +470,19 @@ export default function VoiceAssistantPage() {
       };
 
       rec.onend = () => {
-        // Chrome ends the session on short pauses.
-        // We spawn a FRESH instance after 50ms so user can keep talking naturally without getting cut off
+        // If user already spoke words and the engine stopped, commit them!
+        if (isRecordingIntentRef.current && accumulatedTranscriptRef.current.trim()) {
+          stopAndCommitSpeech();
+          return;
+        }
+
+        // If continuous recording is still active and no words were spoken yet, restart
         if (isRecordingIntentRef.current && !isAssistantSpeakingRef.current) {
           setTimeout(() => {
             if (isRecordingIntentRef.current && !isAssistantSpeakingRef.current) {
               spawnRecognition();
             }
-          }, 60);
+          }, 80);
         } else {
           setIsRecording(false);
         }
