@@ -65,3 +65,5 @@ harness-*.json
 target-config.json
 openapi.json
 
+screenshots/
+take_screenshots.js
