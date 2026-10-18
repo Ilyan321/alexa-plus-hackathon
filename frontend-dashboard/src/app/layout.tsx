@@ -4,6 +4,13 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "EchoForge — Industrial Voice Assistant",
   description: "Real-time edge metrology and aerospace voice bridge",
+  icons: {
+    icon: [
+      { url: "/echoforge-favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", type: "image/x-icon" },
+    ],
+    apple: "/echoforge-favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

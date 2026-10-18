@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="12" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff6b00"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" fill="#1a0a00"/>
+
+  <!-- Hexagon (flat-top, industrial nut shape) -->
+  <polygon
+    points="256,48 432,150 432,362 256,464 80,362 80,150"
+    fill="none"
+    stroke="#ff6b00"
+    stroke-width="18"
+    stroke-linejoin="round"
+    filter="url(#glow)"
+  />
+
+  <!-- Waveform bars (left, center, right) -->
+  <!-- Left bar - short -->
+  <rect x="180" y="208" width="44" height="96" rx="10" ry="10"
+    fill="url(#barGrad)" filter="url(#glow)" opacity="0.9"/>
+
+  <!-- Center bar - tall -->
+  <rect x="234" y="160" width="44" height="192" rx="10" ry="10"
+    fill="url(#barGrad)" filter="url(#glow)"/>
+
+  <!-- Right bar - medium -->
+  <rect x="288" y="188" width="44" height="136" rx="10" ry="10"
+    fill="url(#barGrad)" filter="url(#glow)" opacity="0.9"/>
+</svg>
