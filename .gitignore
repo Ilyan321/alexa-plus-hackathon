@@ -39,3 +39,29 @@ test-results/
 # Media & recordings
 videos/
 
+# Internal AI agent config
+AGENTS.md
+CLAUDE.md
+.gsd/
+
+# Internal dev scripts & scratch files
+COPY_PASTE_FOR_VIDEO_SESSION.md
+record_demo.js
+test_harness.py
+create-harness-input*.json
+frontend-dashboard/create_harness*.js
+frontend-dashboard/recreate.js
+frontend-dashboard/assistant_interface.html
+frontend-dashboard/AGENTS.md
+mcp-server/update_server.py
+planning/PLAYWRIGHT_VIDEO_RECORDING_PROMPT.md
+planning/friction_log.md
+planning/hackathon_overview.md
+
+# AWS infra scratch files
+bucket_info.json
+gateway-trust-policy.json
+harness-*.json
+target-config.json
+openapi.json
+
