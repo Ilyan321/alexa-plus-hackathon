@@ -275,25 +275,27 @@ async def root_dashboard(request):
     .status-pill {
       display: inline-flex;
       align-items: center;
-      gap: 0.4rem;
-      padding: 0.35rem 0.75rem;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      gap: 0.45rem;
+      padding: 0.35rem 0.8rem;
+      background: rgba(249, 115, 22, 0.12);
+      border: 1px solid rgba(249, 115, 22, 0.35);
       border-radius: 9999px;
       font-size: 0.75rem;
       font-weight: 600;
-      color: #34d399;
+      color: #fb923c;
+      box-shadow: 0 0 16px -2px rgba(249, 115, 22, 0.2);
     }
     .status-dot {
       width: 7px;
       height: 7px;
-      background: #10b981;
+      background: #f97316;
       border-radius: 50%;
-      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      box-shadow: 0 0 8px #f97316;
+      animation: pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
     @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.9); }
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 8px #f97316; }
+      50% { opacity: 0.35; transform: scale(0.85); box-shadow: 0 0 2px #f97316; }
     }
     .info-grid {
       display: grid;
