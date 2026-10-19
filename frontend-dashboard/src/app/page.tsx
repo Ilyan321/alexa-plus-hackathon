@@ -71,7 +71,7 @@ export default function VoiceAssistantPage() {
   // Silent background pre-warm of the Render Edge MCP server on initial app load
   useEffect(() => {
     try {
-      fetch('https://echoforge-mcp.onrender.com/health', { mode: 'no-cors' }).catch(() => {});
+      fetch('https://echoforge-mcp-fresh.onrender.com/health', { mode: 'no-cors' }).catch(() => {});
     } catch {}
   }, []);
 

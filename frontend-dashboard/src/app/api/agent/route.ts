@@ -7,6 +7,7 @@ export const maxDuration = 60;
 
 const HARNESS_ARN = 'arn:aws:bedrock-agentcore:us-east-1:152307755678:harness/EchoForgeHarnessV9-qjI7ySsTk3';
 const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN?.trim();
+const MCP_SERVER_URL = 'https://echoforge-mcp-fresh.onrender.com';
 const MAX_PROMPT_LENGTH = 4_000;
 const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{33,256}$/;
 
@@ -29,15 +30,25 @@ function getClient() {
   return new BedrockAgentCoreClient({ region });
 }
 
+async function postMcp(path: 'query' | 'repair', body: Record<string, unknown>) {
+  const response = await fetch(`${MCP_SERVER_URL}/${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(MCP_AUTH_TOKEN ? { Authorization: `Bearer ${MCP_AUTH_TOKEN}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const result = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(`MCP ${path} request failed with HTTP ${response.status}`);
+  }
+  return result;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    if (!MCP_AUTH_TOKEN) {
-      return NextResponse.json(
-        { error: 'Metrology service authentication is not configured' },
-        { status: 503 }
-      );
-    }
-
     let body: unknown;
     try {
       const rawBody = await req.text();
@@ -126,27 +137,16 @@ export async function POST(req: NextRequest) {
       let toolResult = '';
 
       if (isQuery) {
-        const queryRes = await fetch('https://echoforge-mcp.onrender.com/query', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${MCP_AUTH_TOKEN}`,
-          },
-          body: JSON.stringify({ feature_name: feature }),
-        }).then((r) => r.json()).catch(() => null);
+        const queryRes = await postMcp('query', { feature_name: feature });
 
         if (queryRes?.deviation_info) {
           toolResult = queryRes.deviation_info;
         }
       } else {
-        const repairRes = await fetch('https://echoforge-mcp.onrender.com/repair', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${MCP_AUTH_TOKEN}`,
-          },
-          body: JSON.stringify({ feature_name: feature, deviation_microns: devMicrons }),
-        }).then((r) => r.json()).catch(() => null);
+        const repairRes = await postMcp('repair', {
+          feature_name: feature,
+          deviation_microns: devMicrons,
+        });
 
         if (repairRes?.repair_procedure) {
           toolResult = repairRes.repair_procedure;
@@ -211,8 +211,11 @@ export async function POST(req: NextRequest) {
       stopReason,
     });
 
-  } catch {
-    console.error('[EchoForge API] AgentCore invocation failed');
+  } catch (error) {
+    console.error(
+      '[EchoForge API] AgentCore invocation failed',
+      error instanceof Error ? error.message : 'Unknown error'
+    );
     return NextResponse.json(
       { error: 'Failed to process the request. Please try again.' },
       { status: 500 }

@@ -5,7 +5,7 @@
 > Part of [EchoForge Hackathon Submission](https://github.com/Ilyan321/alexa-plus-hackathon)
 
 [![MCP Spec](https://img.shields.io/badge/MCP%20Spec-2025--11--25%20Streamable%20HTTP-success)](https://modelcontextprotocol.io)
-[![Live Server](https://img.shields.io/badge/Live%20Server-echoforge--mcp.onrender.com-blue)](https://echoforge-mcp.onrender.com)
+[![Live Server](https://img.shields.io/badge/Live%20Server-echoforge--mcp--fresh.onrender.com-blue)](https://echoforge-mcp-fresh.onrender.com)
 
 ---
 
@@ -91,7 +91,7 @@ When `MCP_AUTH_TOKEN` is configured, all routes except `/health` require `Author
 
 ### Example: Health Check
 ```bash
-curl -s https://echoforge-mcp.onrender.com/health
+curl -s https://echoforge-mcp-fresh.onrender.com/health
 ```
 ```json
 {
@@ -104,7 +104,7 @@ curl -s https://echoforge-mcp.onrender.com/health
 
 ### Example: Query Deviation
 ```bash
-curl -s -X POST https://echoforge-mcp.onrender.com/query \
+curl -s -X POST https://echoforge-mcp-fresh.onrender.com/query \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
      -d '{"feature_name": "UPPER_FLANGE"}'
@@ -112,7 +112,7 @@ curl -s -X POST https://echoforge-mcp.onrender.com/query \
 
 ### Example: Get Repair Procedure
 ```bash
-curl -s -X POST https://echoforge-mcp.onrender.com/repair \
+curl -s -X POST https://echoforge-mcp-fresh.onrender.com/repair \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
      -d '{"feature_name": "TURBINE_BLADE_ROOT", "deviation_microns": 1.687}'
@@ -124,7 +124,7 @@ curl -s -X POST https://echoforge-mcp.onrender.com/repair \
 
 The production MCP server is deployed on **Render**:
 
-🌐 **https://echoforge-mcp.onrender.com**
+🌐 **https://echoforge-mcp-fresh.onrender.com**
 
 Deployment is configured via [`render.yaml`](./render.yaml).
 

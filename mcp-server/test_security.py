@@ -14,7 +14,7 @@ class MCPRequestSecurityTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.client = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=server.app),
-            base_url="https://echoforge-mcp.onrender.com",
+            base_url="https://echoforge-mcp-fresh.onrender.com",
         )
 
     async def asyncTearDown(self):
@@ -57,7 +57,7 @@ class MCPRequestSecurityTests(unittest.IsolatedAsyncioTestCase):
             middleware = server.MCPRequestSecurityMiddleware(app)
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=middleware),
-            base_url="https://echoforge-mcp.onrender.com",
+            base_url="https://echoforge-mcp-fresh.onrender.com",
         ) as client:
             response = await client.post("/query")
 

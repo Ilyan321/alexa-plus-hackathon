@@ -98,8 +98,8 @@ class MCPRequestSecurityMiddleware:
         hosts = cls._env_list(
             "MCP_ALLOWED_HOSTS",
             [
-                "echoforge-mcp.onrender.com",
-                "echoforge-mcp.onrender.com:*",
+                "echoforge-mcp-fresh.onrender.com",
+                "echoforge-mcp-fresh.onrender.com:*",
                 "localhost:*",
                 "127.0.0.1:*",
                 "testserver",

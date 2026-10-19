@@ -101,7 +101,7 @@ While the prototype targets aerospace metrology, the architecture is agnostic. N
 | **GitHub repo** | https://github.com/Ilyan321/alexa-plus-hackathon |
 | **Live demo (Web UI)** | https://echoforge.aenox.me |
 | **Alexa Skill** (test with your own device) | https://alexa.amazon.com/spa/index.html#skills‑list |
-| **MCP server endpoint (JSON‑RPC)** | `https://echoforge-mcp.onrender.com/mcp` |
+| **MCP server endpoint (JSON‑RPC)** | `https://echoforge-mcp-fresh.onrender.com/mcp` |
 
 ---
 

@@ -10,7 +10,7 @@
 - **Contribution URL (Commit History)**: [https://github.com/Ilyan321/alexa-plus-hackathon/commits/main](https://github.com/Ilyan321/alexa-plus-hackathon/commits/main)
 - **License**: [MIT License](https://github.com/Ilyan321/alexa-plus-hackathon/blob/main/LICENSE) (Open Source, OSI-approved)
 - **Live Deployed Demonstration**: [https://echoforge.aenox.me](https://echoforge.aenox.me)
-- **Live Edge MCP Server**: [https://echoforge-mcp.onrender.com](https://echoforge-mcp.onrender.com)
+- **Live Edge MCP Server**: [https://echoforge-mcp-fresh.onrender.com](https://echoforge-mcp-fresh.onrender.com)
 
 ---
 

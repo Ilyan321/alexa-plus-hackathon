@@ -13,9 +13,9 @@
 
 ## 🚀 Demo & Deployment Status
 - **Web App / Simulated Alexa+ Console**: [https://echoforge.aenox.me](https://echoforge.aenox.me)
-- **Live Edge MCP Server (Render)**: [https://echoforge-mcp.onrender.com](https://echoforge-mcp.onrender.com)
-  - Health check: `GET https://echoforge-mcp.onrender.com/health`
-  - Streamable HTTP MCP Endpoint: `POST https://echoforge-mcp.onrender.com/mcp` (requires the server-side bearer token)
+- **Live Edge MCP Server (Render)**: [https://echoforge-mcp-fresh.onrender.com](https://echoforge-mcp-fresh.onrender.com)
+  - Health check: `GET https://echoforge-mcp-fresh.onrender.com/health`
+  - Streamable HTTP MCP Endpoint: `POST https://echoforge-mcp-fresh.onrender.com/mcp` (requires the server-side bearer token)
 - **Remediation branch**: `audit/echo-forge-remediation` — security changes are implemented and pushed; deployment verification is pending.
 - **Primary Hackathon Track**: **Alexa+** (Self-Hosted Streamable HTTP MCP Server & Simulated Alexa+ Interface)
 - **Mini-Challenges Entered**:
@@ -128,7 +128,7 @@ npm run dev
 
 The health route is public; the MCP and tool routes require a bearer token configured only on the server:
 ```bash
-curl -s https://echoforge-mcp.onrender.com/health
+curl -s https://echoforge-mcp-fresh.onrender.com/health
 ```
 **Expected Response:**
 ```json
