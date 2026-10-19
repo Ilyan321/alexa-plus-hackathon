@@ -19,11 +19,11 @@ def run_tests():
     # 2. Test: Happy Path
     server.DMO_FILE_PATH = os.path.join(test_data_dir, "happy_path.dmo")
     result = server.query_dmo_deviation("UPPER_FLANGE")
-    assert "1.8 microns" in result, f"Expected 1.8 microns, got: {result}"
+    assert "1.800 microns" in result, f"Expected 1.800 microns, got: {result}"
     print("✓ Happy Path test passed (UPPER_FLANGE)")
 
     result = server.query_dmo_deviation("MAIN_BORE_HOLE")
-    assert "0.02 microns" in result, f"Expected 0.02 microns, got: {result}"
+    assert "0.020 microns" in result, f"Expected 0.020 microns, got: {result}"
     print("✓ Happy Path test passed (MAIN_BORE_HOLE)")
 
     # 3. Test: Missing Feature
@@ -41,12 +41,12 @@ def run_tests():
     # block.strip() starts with "WEIRD_SPACING_FEATURE"
     # So `query_dmo_deviation("WEIRD_SPACING_FEATURE")` should work!
     result = server.query_dmo_deviation("WEIRD_SPACING_FEATURE")
-    assert "-0.54 microns" in result, f"Expected -0.54 microns, got: {result}"
+    assert "-0.540 microns" in result, f"Expected -0.540 microns, got: {result}"
     print("✓ Malformed Data test passed (WEIRD_SPACING_FEATURE)")
 
     # Test "NO_SPACE_FEATURE" (FILNAM/NO_SPACE_FEATURE)
     result = server.query_dmo_deviation("NO_SPACE_FEATURE")
-    assert "1.02 microns" in result, f"Expected 1.02 microns, got: {result}"
+    assert "1.020 microns" in result, f"Expected 1.020 microns, got: {result}"
     print("✓ Malformed Data test passed (NO_SPACE_FEATURE)")
     
     print("All tests passed successfully!")

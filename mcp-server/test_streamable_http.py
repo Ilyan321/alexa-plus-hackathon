@@ -8,23 +8,28 @@ Verifies:
 5. MCP tools/call executing live metrology inspection query
 """
 
-import sys
+import asyncio
 import os
-from starlette.testclient import TestClient
+import httpx
 
 os.environ["MCP_AUTH_TOKEN"] = "test-mcp-token"
 from server import app
 
-def test_echoforge_mcp_compliance():
-    with TestClient(app, base_url="http://localhost:8000") as client:
+async def test_echoforge_mcp_compliance():
+    lifespan = app.router.lifespan_context(app)
+    await lifespan.__aenter__()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://localhost:8000",
+    ) as client:
         # 1. Health check
-        h = client.get("/health")
+        h = await client.get("/health")
         assert h.status_code == 200
         assert h.json()["mcp_protocol_version"] == "2025-11-25"
         print("✓ PASS: /health reports MCP 2025-11-25 support")
 
         # 2. Existing REST compatibility
-        q = client.post(
+        q = await client.post(
             "/query",
             json={"feature_name": "UPPER_FLANGE"},
             headers={"Authorization": "Bearer test-mcp-token"},
@@ -33,7 +38,7 @@ def test_echoforge_mcp_compliance():
         assert "deviation" in q.json()["deviation_info"].lower()
         print("✓ PASS: Existing /query backwards compatibility intact")
 
-        r = client.post(
+        r = await client.post(
             "/repair",
             json={"feature_name": "UPPER_FLANGE", "deviation_microns": 2.5},
             headers={"Authorization": "Bearer test-mcp-token"},
@@ -43,7 +48,7 @@ def test_echoforge_mcp_compliance():
         print("✓ PASS: Existing /repair backwards compatibility intact")
 
         # 3. Streamable HTTP MCP handshake (Spec 2025-11-25)
-        init_res = client.post(
+        init_res = await client.post(
             "/mcp",
             json={
                 "jsonrpc": "2.0",
@@ -66,7 +71,7 @@ def test_echoforge_mcp_compliance():
         print(f"✓ PASS: Streamable HTTP initialize successful (session ID: {session_id})")
 
         # 4. tools/list over Streamable HTTP
-        tools_res = client.post(
+        tools_res = await client.post(
             "/mcp",
             json={
                 "jsonrpc": "2.0",
@@ -86,7 +91,7 @@ def test_echoforge_mcp_compliance():
         print("✓ PASS: Streamable HTTP tools/list verified")
 
         # 5. tools/call over Streamable HTTP
-        call_res = client.post(
+        call_res = await client.post(
             "/mcp",
             json={
                 "jsonrpc": "2.0",
@@ -106,8 +111,9 @@ def test_echoforge_mcp_compliance():
         assert call_res.status_code == 200
         assert "TURBINE_BLADE_ROOT" in call_res.text
         print("✓ PASS: Streamable HTTP tools/call verified")
+    await lifespan.__aexit__(None, None, None)
 
     print("\nALL MCP STREAMABLE HTTP VERIFICATION TESTS PASSED!")
 
 if __name__ == "__main__":
-    test_echoforge_mcp_compliance()
+    asyncio.run(test_echoforge_mcp_compliance())
