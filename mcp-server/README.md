@@ -87,7 +87,7 @@ python server.py
 | `/query` | `POST` | REST: query deviation for a named feature |
 | `/repair` | `POST` | REST: get CNC repair procedure for a deviation |
 
-When `MCP_AUTH_TOKEN` is configured, all routes except `/health` require `Authorization: Bearer $MCP_AUTH_TOKEN`. If it is unset, these routes allow unauthenticated access for local development. Production deployments should configure a strong secret and set the matching server-only token in the Next.js host; never expose it through a `NEXT_PUBLIC_` variable. `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` can override the default allowlists.
+The MCP and REST endpoints are public and do not require an `MCP_AUTH_TOKEN`. `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` can override the default allowlists.
 
 ### Example: Health Check
 ```bash
@@ -106,7 +106,6 @@ curl -s https://echoforge-mcp-fresh.onrender.com/health
 ```bash
 curl -s -X POST https://echoforge-mcp-fresh.onrender.com/query \
      -H "Content-Type: application/json" \
-     -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
      -d '{"feature_name": "UPPER_FLANGE"}'
 ```
 
@@ -114,7 +113,6 @@ curl -s -X POST https://echoforge-mcp-fresh.onrender.com/query \
 ```bash
 curl -s -X POST https://echoforge-mcp-fresh.onrender.com/repair \
      -H "Content-Type: application/json" \
-     -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
      -d '{"feature_name": "TURBINE_BLADE_ROOT", "deviation_microns": 1.687}'
 ```
 

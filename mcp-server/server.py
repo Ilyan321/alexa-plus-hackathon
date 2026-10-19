@@ -1,7 +1,6 @@
 import os
 import re
 import json
-import hmac
 import math
 import threading
 import time
@@ -75,7 +74,6 @@ class MCPRequestSecurityMiddleware:
 
     def __init__(self, app: ASGIApp):
         self.app = app
-        self.token = os.environ.get("MCP_AUTH_TOKEN", "").strip()
         self.allowed_hosts = self._allowed_hosts()
         self.allowed_origins = self._env_list(
             "MCP_ALLOWED_ORIGINS",
@@ -130,24 +128,8 @@ class MCPRequestSecurityMiddleware:
             response = JSONResponse({"error": "Host not allowed"}, status_code=421)
         elif origin and not self._matches(origin, self.allowed_origins):
             response = JSONResponse({"error": "Origin not allowed"}, status_code=403)
-        elif self.token:
-            authorization = headers.get(b"authorization", b"")
-            scheme, separator, presented_token = authorization.partition(b" ")
-            if (
-                not separator
-                or scheme.lower() != b"bearer"
-                or not hmac.compare_digest(presented_token.strip(), self.token.encode("utf-8"))
-            ):
-                response = JSONResponse(
-                    {"error": "Unauthorized"},
-                    status_code=401,
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            else:
-                await self.app(scope, receive, send)
-                return
         else:
-            # Allow unauthenticated access for local development when no secret is configured.
+            # The inspection endpoint is public; ignore any legacy MCP_AUTH_TOKEN value.
             await self.app(scope, receive, send)
             return
 

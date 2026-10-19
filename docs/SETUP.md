@@ -29,11 +29,6 @@ source .venv/bin/activate       # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Configure a local server token before launching. Use the same value in `frontend-dashboard/.env.local` as `MCP_AUTH_TOKEN`.
-```bash
-export MCP_AUTH_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-```
-
 ### 3. Run automated compliance test suite
 Verify that the Streamable HTTP handshake, tool listing, tool invocation, and legacy REST endpoints operate as expected:
 ```bash

@@ -140,7 +140,7 @@ curl -s https://echoforge-mcp-fresh.onrender.com/health
 }
 ```
 
-Do not place `MCP_AUTH_TOKEN` in browser code or expose it in a public client. Configure it as a server-side secret on Render and the frontend host. The agent API still needs user authentication and production abuse controls; see the [remediation friction log](planning/FRICTION_LOG.md).
+The MCP service accepts public metrology queries without an `MCP_AUTH_TOKEN`. The agent API still needs user authentication and production abuse controls; see the [remediation friction log](planning/FRICTION_LOG.md).
 
 ---
 
