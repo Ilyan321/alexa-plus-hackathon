@@ -293,7 +293,7 @@ export default function VoiceAssistantPage() {
           /within tolerance|in tolerance|nominal|passes tolerance|safe for (final )?turbine assembly/i.test(cleanText);
 
         const devVal = parseDeviation(cleanText);
-        let newStatus: StatusType = 'normal';
+        let newStatus: StatusType = 'idle';
         if (isOutOfTol) {
           newStatus = 'error';
         } else if (isWithinTol) {
@@ -320,7 +320,9 @@ export default function VoiceAssistantPage() {
         setSubStatus(
           newStatus === 'error'
             ? '⚠️ Deviation Exceeded (Repair Required)'
-            : '✓ Within Tolerance (Nominal)'
+            : newStatus === 'normal'
+            ? '✓ Within Tolerance (Nominal)'
+            : 'No measured value returned; tolerance status unavailable'
         );
 
         speakResponse(cleanText);
@@ -769,8 +771,10 @@ export default function VoiceAssistantPage() {
               <div className="flex items-center gap-2">
                 {deviationStatus === 'error' ? (
                   <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-                ) : (
+                ) : deviationStatus === 'normal' ? (
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <Sparkles className="w-4 h-4 text-brand-500 shrink-0" />
                 )}
                 <span className="text-xs font-bold uppercase tracking-wider text-brand-700">
                   AgentCore Intelligence
