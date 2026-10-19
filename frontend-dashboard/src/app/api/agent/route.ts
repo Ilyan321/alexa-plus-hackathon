@@ -105,19 +105,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Detect if Nova Pro outputted an action intent to invoke RenderServerTarget or query/repair
+    const featureFromPrompt = prompt.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
+    const explicitMetrologyRequest = /\b(deviation|tolerance|reading|status|inspect|inspection|sensor|measure|query|check|current|live)\b/i.test(prompt);
+    const explicitRepairRequest = /\b(repair procedure|repair instructions|CNC procedure|rework procedure|retrieve.*repair|repair.*procedure)\b/i.test(prompt);
+
+    // AgentCore action payloads can appear as plain JSON instead of the named action marker.
     const hasToolIntent =
       /RenderServerTarget___(queryDeviation|getRepairProcedure)/i.test(fullText) ||
       /Action:\s*RenderServerTarget/i.test(fullText) ||
       /\bqueryDeviation\b/i.test(fullText) ||
-      /\bgetRepairProcedure\b/i.test(fullText);
+      /\bgetRepairProcedure\b/i.test(fullText) ||
+      /["']feature_name["']\s*:/i.test(fullText) ||
+      Boolean(featureFromPrompt && (explicitMetrologyRequest || explicitRepairRequest));
 
     if (hasToolIntent) {
-      const isRepair = /getRepairProcedure|repair/i.test(fullText);
+      const isRepair = /\bgetRepairProcedure\b/i.test(fullText) || explicitRepairRequest;
       const isQuery = !isRepair;
 
       // Prioritize the user's explicit current prompt so previous multi-turn history does not hijack the feature
-      const featureFromPrompt = prompt.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
       const featureFromJson = fullText.match(/"feature_name"\s*:\s*"([^"]+)"/i) || fullText.match(/'feature_name'\s*:\s*'([^']+)'/i);
       const featureFromText = fullText.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
 
