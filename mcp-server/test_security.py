@@ -49,19 +49,20 @@ class MCPRequestSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("deviation_info", response.json())
 
     async def test_query_is_public_when_no_token_is_configured(self):
+        async def app(scope, receive, send):
+            response = server.JSONResponse({"ok": True})
+            await response(scope, receive, send)
+
         with patch.dict(os.environ, {"MCP_AUTH_TOKEN": ""}):
-            app = server.MCPRequestSecurityMiddleware(server.app)
+            middleware = server.MCPRequestSecurityMiddleware(app)
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app),
+            transport=httpx.ASGITransport(app=middleware),
             base_url="https://echoforge-mcp.onrender.com",
         ) as client:
-            response = await client.post(
-                "/query",
-                json={"feature_name": "UPPER_FLANGE"},
-            )
+            response = await client.post("/query")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("deviation_info", response.json())
+        self.assertEqual(response.json(), {"ok": True})
 
     async def test_invalid_query_feature_is_rejected(self):
         response = await self.client.post(
