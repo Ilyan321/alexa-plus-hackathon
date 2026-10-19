@@ -215,88 +215,158 @@ async def root_dashboard(request):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EchoForge — Metrology Bridge</title>
+  <title>EchoForge OS — Metrology Bridge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #090a0f;
-      color: #e2e8f0;
+      font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+      background: #fffaf5;
+      color: #7e2a0b;
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       padding: 1.5rem;
+      position: relative;
+      overflow-x: hidden;
     }
+
+    /* Ambient animated blobs matching EchoForge frontend */
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+      opacity: 0.55;
+      mix-blend-mode: multiply;
+      z-index: 0;
+    }
+    .blob-1 {
+      top: -10vw;
+      left: -10vw;
+      width: 45vw;
+      height: 45vw;
+      background: #ffd6b0;
+      animation: float1 12s ease-in-out infinite alternate;
+    }
+    .blob-2 {
+      top: 20%;
+      right: -10vw;
+      width: 40vw;
+      height: 40vw;
+      background: #ffb57a;
+      animation: float2 14s ease-in-out infinite alternate;
+    }
+    .blob-3 {
+      bottom: -15vw;
+      left: 15vw;
+      width: 50vw;
+      height: 50vw;
+      background: #ffeed9;
+      animation: float3 16s ease-in-out infinite alternate;
+    }
+
+    @keyframes float1 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(40px, 30px) scale(1.08); } }
+    @keyframes float2 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(-30px, 40px) scale(0.95); } }
+    @keyframes float3 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(30px, -20px) scale(1.05); } }
+
     .card {
-      background: radial-gradient(circle at top left, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.8));
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      max-width: 540px;
+      position: relative;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 214, 176, 0.65);
+      border-radius: 28px;
+      max-width: 520px;
       width: 100%;
       padding: 2.25rem;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 40px -10px rgba(14, 165, 233, 0.15);
-      backdrop-filter: blur(12px);
+      box-shadow: 0 20px 45px -15px rgba(255, 107, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.9) inset;
     }
+
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.75rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid rgba(255, 214, 176, 0.5);
     }
     .brand {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.85rem;
     }
-    .logo-badge {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #0284c7, #2563eb);
+    .sparkle-badge {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #ff6b00;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 700;
-      font-size: 1.1rem;
       color: #fff;
-      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+      box-shadow: 0 8px 18px -4px rgba(255, 107, 0, 0.45);
     }
     .title {
-      font-size: 1.25rem;
+      font-size: 1.15rem;
       font-weight: 700;
-      letter-spacing: -0.02em;
-      color: #f8fafc;
+      letter-spacing: -0.01em;
+      color: #7e2a0b;
+      line-height: 1.15;
     }
     .subtitle {
-      font-size: 0.8rem;
-      color: #94a3b8;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #ff8a3d;
+      margin-top: 2px;
     }
+
     .status-pill {
       display: inline-flex;
       align-items: center;
       gap: 0.45rem;
-      padding: 0.35rem 0.8rem;
-      background: rgba(249, 115, 22, 0.12);
-      border: 1px solid rgba(249, 115, 22, 0.35);
+      padding: 0.35rem 0.85rem;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid #ffd6b0;
       border-radius: 9999px;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 600;
-      color: #fb923c;
-      box-shadow: 0 0 16px -2px rgba(249, 115, 22, 0.2);
+      color: #c73c00;
+      box-shadow: 0 2px 8px -2px rgba(255, 107, 0, 0.15);
+    }
+    .status-dot-wrap {
+      position: relative;
+      display: flex;
+      width: 8px;
+      height: 8px;
+    }
+    .status-ping {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: #ff6b00;
+      opacity: 0.75;
+      animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
     }
     .status-dot {
-      width: 7px;
-      height: 7px;
-      background: #f97316;
+      position: relative;
+      width: 8px;
+      height: 8px;
+      background: #ff6b00;
       border-radius: 50%;
-      box-shadow: 0 0 8px #f97316;
-      animation: pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 8px #f97316; }
-      50% { opacity: 0.35; transform: scale(0.85); box-shadow: 0 0 2px #f97316; }
+    @keyframes ping {
+      75%, 100% { transform: scale(2.2); opacity: 0; }
     }
+
     .info-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -304,101 +374,135 @@ async def root_dashboard(request):
       margin-bottom: 1.5rem;
     }
     .info-box {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 10px;
-      padding: 0.85rem;
+      background: rgba(255, 250, 245, 0.85);
+      border: 1px solid rgba(255, 214, 176, 0.6);
+      border-radius: 16px;
+      padding: 0.95rem 1rem;
     }
     .info-box span {
       display: block;
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #64748b;
-      margin-bottom: 0.25rem;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      color: #ff8a3d;
+      margin-bottom: 0.2rem;
     }
     .info-box strong {
-      font-size: 0.875rem;
-      color: #e2e8f0;
+      font-size: 0.88rem;
+      color: #7e2a0b;
       font-weight: 600;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-family: ui-monospace, SFMono-Regular, monospace;
     }
+
     .endpoints {
-      background: rgba(15, 23, 42, 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 12px;
-      padding: 1rem;
-      margin-bottom: 1.5rem;
+      background: rgba(255, 250, 245, 0.7);
+      border: 1px solid rgba(255, 214, 176, 0.55);
+      border-radius: 18px;
+      padding: 1.15rem;
+      margin-bottom: 1.75rem;
     }
-    .endpoints h3 {
-      font-size: 0.75rem;
+    .endpoints-title {
+      font-size: 0.7rem;
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #64748b;
-      margin-bottom: 0.6rem;
+      letter-spacing: 0.08em;
+      color: #ff8a3d;
+      margin-bottom: 0.75rem;
     }
     .endpoint-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0.35rem 0;
-      font-size: 0.8rem;
+      padding: 0.5rem 0;
+      font-size: 0.82rem;
       font-family: ui-monospace, monospace;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      border-bottom: 1px solid rgba(255, 214, 176, 0.35);
     }
     .endpoint-item:last-child { border-bottom: none; }
     .method {
-      padding: 0.15rem 0.4rem;
-      border-radius: 4px;
+      padding: 0.15rem 0.45rem;
+      border-radius: 6px;
       font-size: 0.65rem;
       font-weight: 700;
+      letter-spacing: 0.03em;
     }
-    .get { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-    .post { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+    .get { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
+    .post { background: rgba(249, 115, 22, 0.15); color: #ea580c; }
     .auth-tag {
       font-size: 0.65rem;
-      color: #f59e0b;
-      background: rgba(245, 158, 11, 0.1);
-      padding: 0.15rem 0.4rem;
-      border-radius: 4px;
+      font-weight: 600;
+      color: #c73c00;
+      background: rgba(255, 107, 0, 0.1);
+      border: 1px solid rgba(255, 107, 0, 0.2);
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
     }
     .public-tag {
       font-size: 0.65rem;
-      color: #10b981;
-      background: rgba(16, 185, 129, 0.1);
-      padding: 0.15rem 0.4rem;
-      border-radius: 4px;
+      font-weight: 600;
+      color: #059669;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
     }
-    .footer {
+
+    .cta-btn {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      font-size: 0.75rem;
-      color: #64748b;
-    }
-    .footer a {
-      color: #38bdf8;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      padding: 0.85rem 1.25rem;
+      background: #ff6b00;
+      color: #ffffff;
       text-decoration: none;
-      font-weight: 500;
-      transition: color 0.15s;
+      font-size: 0.88rem;
+      font-weight: 600;
+      border-radius: 9999px;
+      box-shadow: 0 10px 25px -6px rgba(255, 107, 0, 0.4);
+      transition: all 0.2s ease;
     }
-    .footer a:hover {
-      color: #7dd3fc;
+    .cta-btn:hover {
+      background: #f05300;
+      transform: translateY(-2px);
+      box-shadow: 0 14px 28px -6px rgba(255, 107, 0, 0.5);
+    }
+
+    .footer {
+      margin-top: 1.5rem;
+      text-align: center;
+      font-size: 0.72rem;
+      color: #ff8a3d;
+      font-weight: 500;
     }
   </style>
 </head>
 <body>
+  <!-- Ambient blobs from assistant_interface.html & EchoForge OS -->
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+
   <div class="card">
     <div class="header">
       <div class="brand">
-        <div class="logo-badge">⚡</div>
+        <div class="sparkle-badge">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+          </svg>
+        </div>
         <div>
-          <div class="title">EchoForge</div>
-          <div class="subtitle">Metrology Bridge Server</div>
+          <div class="title">EchoForge OS</div>
+          <div class="subtitle">Live Metrology Edge Bridge</div>
         </div>
       </div>
       <div class="status-pill">
-        <span class="status-dot"></span>
+        <span class="status-dot-wrap">
+          <span class="status-ping"></span>
+          <span class="status-dot"></span>
+        </span>
         OPERATIONAL
       </div>
     </div>
@@ -415,7 +519,7 @@ async def root_dashboard(request):
     </div>
 
     <div class="endpoints">
-      <h3>Exposed Endpoints</h3>
+      <div class="endpoints-title">Exposed Service Routes</div>
       <div class="endpoint-item">
         <span><span class="method get">GET</span> /health</span>
         <span class="public-tag">PUBLIC</span>
@@ -434,9 +538,16 @@ async def root_dashboard(request):
       </div>
     </div>
 
+    <a class="cta-btn" href="https://echoforge.aenox.me" target="_blank" rel="noreferrer">
+      Launch Voice Dashboard
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+        <polyline points="12 5 19 12 12 19"></polyline>
+      </svg>
+    </a>
+
     <div class="footer">
-      <span>EchoForge Industrial Metrology Agent</span>
-      <a href="https://echoforge.aenox.me" target="_blank" rel="noreferrer">Open Dashboard &rarr;</a>
+      AWS Bedrock AgentCore &middot; Hexagon CMM Inspection Bridge
     </div>
   </div>
 </body>
