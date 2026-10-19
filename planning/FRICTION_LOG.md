@@ -34,14 +34,14 @@ This document fulfills the **Hackathon 10% Score Bonus** requirement and **Submi
 - **Workaround/Fix**:
   1. Built regex interceptors in `frontend-dashboard/src/app/api/agent/route.ts` detecting `RenderServerTarget___` and `queryDeviation`/`getRepairProcedure`.
   2. Bypassed direct stream output when tool intent is identified, fetched live data from the edge MCP endpoint, and performed a second-pass synthesis with the Bedrock Harness.
-  3. Added a clean-up sanitizer regex to guarantee zero raw action strings escape to the operator.
+  3. Added output sanitization for known raw action string patterns before returning a response.
 - **Feedback for AWS Team**: In Bedrock AgentCore, provide first-class tool calling event blocks in the stream (similar to standard Bedrock Converse API `toolUse` content blocks) rather than blending action strings directly into `contentBlockDelta.delta.text`.
 
 ---
 
 ### Entry 3: Multi-Turn Context Race Condition (Stale Parameter Hijacking)
 - **Area**: Agentic Multi-Turn Memory & Edge Metrology Tool Execution
-- **Symptoms**: If an operator first asked *"Inspect UPPER_FLANGE"*, followed by *"Check MAIN_BORE_HOLE"*, Nova Pro's tool call JSON retained `UPPER_FLANGE` from the prior turn, querying the wrong physical part on the factory floor.
+- **Symptoms**: In simulated multi-turn tests, if an operator first asked *"Inspect UPPER_FLANGE"*, followed by *"Check MAIN_BORE_HOLE"*, Nova Pro's tool call JSON could retain `UPPER_FLANGE` from the prior turn and query the wrong simulated feature.
 - **Time Lost**: ~2 hours.
 - **Root Cause**: In multi-turn chat memory, previously grounded entities had higher attention weight than subtle follow-up pronouns or rapid command changes.
 - **Workaround/Fix**:
@@ -97,16 +97,53 @@ This document fulfills the **Hackathon 10% Score Bonus** requirement and **Submi
 
 ---
 
+### Entry 7: Public MCP Routes Had No Service Authentication
+- **Area**: EchoForge MCP server (`/mcp`, `/sse`, `/messages`, `/query`, `/repair`)
+- **Symptoms**: Tool and REST routes could be called without a credential, and the server relied on implicit Host and Origin protections.
+- **Severity**: High
+- **Root Cause**: The initial demo prioritized connectivity and protocol bring-up; authentication and explicit request-origin boundaries were absent from the first deployment design.
+- **Fix**: Added server-side Bearer token validation with constant-time comparison, explicit Host and Origin allowlists, DNS rebinding protection, and regression tests. `/health` remains public for health checks. The frontend forwards the token only from its server route.
+- **Verification**: Frontend lint and production build pass. Python source compiles. Python security and MCP tests are written but could not run in the audit environment because the `mcp` package was unavailable.
+- **Remaining Work**: Configure matching secrets in Render and the frontend host, deploy the branch, and verify protected endpoints live. Deployment has not yet been verified.
+- **Actionable Suggestion for Amazon Team**: Include authenticated MCP endpoint examples and explicit Host/Origin guidance in cloud deployment quickstarts.
+
+### Entry 8: Simulated Repair Data Looked Like Machine-Ready CNC Instructions
+- **Area**: Metrology repair tool and product documentation
+- **Symptoms**: The repair tool and README described specific machining operations and settings despite using simulated readings without a validated manufacturing process.
+- **Severity**: Critical
+- **Root Cause**: Demo copy blurred the boundary between a simulated tolerance explanation and an approved engineering work instruction.
+- **Fix**: Removed generated machine settings from the MCP repair tool. It validates the feature and finite deviation, reports tolerance status, and directs out-of-tolerance cases to qualified engineering review. Updated the README to remove operational CNC claims and label the product as a prototype.
+- **Verification**: Added regression tests for the simulation warning and absence of sample machine settings. Tests are present but await execution where Python dependencies are installed.
+- **Remaining Work**: Review the full AgentCore response path to ensure the model cannot produce operational machine instructions outside the MCP repair tool. A safe tool response alone does not establish end-to-end output safety.
+- **Actionable Suggestion for Amazon Team**: Provide evaluation guidance for safety boundaries in agentic applications that summarize industrial or simulated data.
+
+### Entry 9: Public Agent Route Had Unbounded Requests and Exposed Upstream Errors
+- **Area**: Next.js `/api/agent` and Bedrock AgentCore invocation
+- **Symptoms**: The route accepted oversized prompts and arbitrary session IDs, had no explicit invocation budgets, returned raw upstream exception details, and could trigger paid inference without user sign-in.
+- **Severity**: High
+- **Fix**: Added a 16 KiB request-body cap, a 4,000-character prompt limit, session-ID format validation, per-invocation iteration/token/time bounds, and generic client-facing errors. MCP calls now use a server-held token.
+- **Verification**: Frontend lint and production build pass. The installed SDK types support the configured `maxIterations`, `maxTokens`, and `timeoutSeconds` fields.
+- **Remaining Work**: Add user authentication and production-grade abuse controls before treating the endpoint as protected from unauthorized inference spend. The route remains publicly callable.
+- **Actionable Suggestion for Amazon Team**: Surface cost and iteration controls in AgentCore examples and document recommended authentication patterns for public web clients.
+
+### Entry 10: Audit Verification Exposed Tooling Gaps
+- **Area**: Frontend lint setup and Python test environment
+- **Symptoms**: The ESLint flat config did not match the installed Next.js 14 lint setup. Python tests could not import the server because the audit environment lacked the `mcp` dependency.
+- **Severity**: Medium
+- **Fix**: Restored the Next.js-compatible ESLint configuration and lint command; added security-focused Python regression cases and corrected stale MCP test assertions.
+- **Verification**: `npm run lint`, `npm run build`, Python bytecode compilation, and `git diff --check` pass. Python unit and integration tests remain unverified until dependencies are installed.
+- **Actionable Suggestion for Amazon Team**: Publish reproducible test setup and dependency guidance alongside cloud SDK and agent examples.
+
 ## 📋 Hackathon Product Feedback Form Answers (Submission Item #7)
 
 ### 1. Which developer tools, APIs, and SDKs did you use and for what?
 - **AWS Bedrock AgentCore SDK (`@aws-sdk/client-bedrock-agentcore`)**: Orchestrated multi-turn agentic workflows and invoked Amazon Nova Pro.
-- **Amazon Nova Pro**: Multi-modal reasoning engine for interpreting metrology tolerance breaches and generating CNC remediation procedures.
+- **Amazon Nova Pro**: Multi-modal reasoning engine for interpreting metrology readings and explaining tolerance status.
 - **Model Context Protocol (MCP) Python SDK**: Built a self-hosted Streamable HTTP (2025-11-25 spec) edge bridge interfacing with factory CMM `.DMO` inspection files.
 - **AWS Amplify (Hosting)**: Deployed the Next.js 14 SSR frontend with continuous GitHub branch deployment and custom domain routing.
 
 ### 2. What worked well?
-- **Amazon Nova Pro Reasoning**: Extremely strong at technical metrology math—calculating tolerance deltas in fractions of a micron and prescribing accurate industrial machining operations (e.g. EDM spark erosion, diamond honing, carbide re-milling).
+- **Amazon Nova Pro Reasoning**: Useful for turning metrology readings into concise operator-facing explanations. This prototype treats readings as simulated and routes repair decisions to qualified engineering review rather than presenting model output as a machine-ready instruction.
 - **Streamable HTTP MCP Architecture**: Unifying the transport over standard HTTP POST with JSON-RPC streaming eliminated the messy bi-directional SSE port multiplexing issues.
 - **AWS Amplify Next.js Support**: Automatic detection and zero-config deployment of Next.js 14 App Router SSR serverless functions.
 
@@ -120,4 +157,4 @@ This document fulfills the **Hackathon 10% Score Bonus** requirement and **Submi
 - Integrating AgentCore programmatically required deep-diving into raw SDK source definitions due to sparse documentation around custom harness schemas and session parameters.
 
 ### 5. Would you build with these devices and services again?
-**Yes, absolutely.** The combination of Amazon Nova Pro's low latency and Bedrock AgentCore's multi-turn session persistence makes it viable for high-stakes industrial environments where accuracy and speed are safety-critical.
+**Yes.** Amazon Nova Pro and Bedrock AgentCore are promising for a hands-free metrology prototype. Further authentication, end-to-end output safety, and deployment verification are required before considering use in a real manufacturing environment.

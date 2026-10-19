@@ -11,11 +11,12 @@
 
 ---
 
-## 🚀 Live Deployments & Verification
+## 🚀 Demo & Deployment Status
 - **Web App / Simulated Alexa+ Console**: [https://echoforge.aenox.me](https://echoforge.aenox.me)
 - **Live Edge MCP Server (Render)**: [https://echoforge-mcp.onrender.com](https://echoforge-mcp.onrender.com)
   - Health check: `GET https://echoforge-mcp.onrender.com/health`
-  - Streamable HTTP MCP Endpoint: `POST https://echoforge-mcp.onrender.com/mcp`
+  - Streamable HTTP MCP Endpoint: `POST https://echoforge-mcp.onrender.com/mcp` (requires the server-side bearer token)
+- **Remediation branch**: `audit/echo-forge-remediation` — security changes are implemented and pushed; deployment verification is pending.
 - **Primary Hackathon Track**: **Alexa+** (Self-Hosted Streamable HTTP MCP Server & Simulated Alexa+ Interface)
 - **Mini-Challenges Entered**:
   1. **AWS Builder**: AWS Bedrock AgentCore (Amazon Nova Pro), AWS Amplify SSR, IAM Security Policies.
@@ -30,9 +31,11 @@ Cleanroom CNC machinists wearing protective gloves and face shields cannot opera
 
 **EchoForge** bridges this gap:
 1. **Hands-Free Ambient Alexa+ Voice UX**: High-res speech recognition with hands-free loop and real-time **barge-in wake word detection** ("Echo", "Alexa", "Stop", "Cancel").
-2. **Bedrock AgentCore Intelligence**: Powered by Amazon Nova Pro to interpret tolerance zones, calculate micron deviations, and autonomously invoke engineering repair workflows.
-3. **Spec-Compliant MCP Metrology Bridge**: Implements the official **MCP 2025-11-25 Streamable HTTP specification** (`/mcp`) to ingest `.DMO` inspection files and output exact CNC offsets and tooling programs.
-4. **Dynamic Speech Synthesis**: Fluid browser voice synthesis speaking physical engineering directives and micron tolerances with phonetic accuracy without hardcoded scripts.
+2. **Bedrock AgentCore Intelligence**: Powered by Amazon Nova Pro to interpret tolerance zones and explain metrology readings.
+3. **MCP Metrology Bridge**: Implements the **MCP 2025-11-25 Streamable HTTP transport** (`/mcp`) to read simulated `.DMO` inspection data and return measurements and tolerance context.
+4. **Dynamic Speech Synthesis**: Browser voice synthesis reads the assistant's metrology summary aloud.
+
+EchoForge is a hackathon prototype using simulated inspection data. It is not a machine-control system. Its repair tool returns a review notice and does not provide CNC settings. End-to-end model output is still being hardened; do not use generated output as a manufacturing work instruction.
 
 ---
 
@@ -44,7 +47,7 @@ flowchart LR
     B -->|"Autonomous Tool Orchestration"| C["AWS Bedrock AgentCore<br/>(Nova Pro Harness)"]
     C <-->|"Streamable HTTP (2025-11-25)<br/>or REST Fallback"| D["EchoForge MCP Server<br/>(Render Edge Node)"]
     D <-->|"Ingests & Parses"| E[("Legacy .DMO Factory<br/>Inspection Data")]
-    C -->|"Dynamic Verdict & CNC Offsets"| B
+    C -->|"Metrology Summary & Review Notice"| B
     B -->|"Phonetic Voice Synthesis + Barge-in"| A
 ```
 
@@ -52,13 +55,13 @@ flowchart LR
 
 ## ⚙️ Supported Aerospace Metrology Features
 
-| Inspection Feature | Nominal Dimension | Tolerance Zone | Engineering CNC Procedure |
+| Inspection Feature | Nominal Dimension | Tolerance Zone | System Response |
 | :--- | :--- | :--- | :--- |
-| `UPPER_FLANGE` | $50.000\text{ mm}$ | $\pm 2.0\text{ µm}$ | CNC Re-Milling (Program 4A) with 1mm carbide end mill |
-| `MAIN_BORE_HOLE` | $15.000\text{ mm}$ | $\pm 0.1\text{ µm}$ | Precision Diamond Honing with Titanium boring bar at 3200 RPM |
-| `TURBINE_BLADE_ROOT` | $32.500\text{ mm}$ | $\pm 1.5\text{ µm}$ | EDM Spark Erosion (Cycle E-9) in dielectric fluid at 45A |
-| `INLET_NOZZLE_RING` | $78.200\text{ mm}$ | $\pm 2.5\text{ µm}$ | Micro-Abrasive CNC Blending & ceramic passivation coat |
-| `EXHAUST_STATOR_BOSS` | $24.000\text{ mm}$ | $\pm 1.8\text{ µm}$ | Facing Skim Cut & M24 Thread Re-Chasing |
+| `UPPER_FLANGE` | $50.000\text{ mm}$ | $\pm 2.0\text{ µm}$ | Reports simulated reading and tolerance status |
+| `MAIN_BORE_HOLE` | $15.000\text{ mm}$ | $\pm 0.1\text{ µm}$ | Reports simulated reading and tolerance status |
+| `TURBINE_BLADE_ROOT` | $32.500\text{ mm}$ | $\pm 1.5\text{ µm}$ | Reports simulated reading and tolerance status |
+| `INLET_NOZZLE_RING` | $78.200\text{ mm}$ | $\pm 2.5\text{ µm}$ | Reports simulated reading and tolerance status |
+| `EXHAUST_STATOR_BOSS` | $24.000\text{ mm}$ | $\pm 1.8\text{ µm}$ | Reports simulated reading and tolerance status |
 
 ---
 
@@ -97,8 +100,9 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Run the test suite proving Streamable HTTP 2025-11-25 compliance
+# Run the MCP transport and security regression checks
 python test_streamable_http.py
+python -m unittest test_security.py test_mcp_logic.py
 
 # Launch local server (default: port 8000)
 python server.py
@@ -120,17 +124,9 @@ npm run dev
 
 ---
 
-## ⚡ Live API Verification
+## ⚡ Service Health Check
 
-You can query the live production deployment directly via curl:
-
-```bash
-curl -s -X POST https://echoforge.aenox.me/api/agent \
-     -H "Content-Type: application/json" \
-     -d '{"prompt":"Query the live sensor deviation for UPPER_FLANGE and evaluate if it is within or out of tolerance."}'
-```
-
-And test the MCP Server Health:
+The health route is public; the MCP and tool routes require a bearer token configured only on the server:
 ```bash
 curl -s https://echoforge-mcp.onrender.com/health
 ```
@@ -143,6 +139,8 @@ curl -s https://echoforge-mcp.onrender.com/health
   "transports": ["streamable-http (/mcp)", "sse (/sse)"]
 }
 ```
+
+Do not place `MCP_AUTH_TOKEN` in browser code or expose it in a public client. Configure it as a server-side secret on Render and the frontend host. The agent API still needs user authentication and production abuse controls; see the [remediation friction log](planning/FRICTION_LOG.md).
 
 ---
 
