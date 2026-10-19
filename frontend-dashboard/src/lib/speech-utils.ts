@@ -40,10 +40,10 @@ export const formatSpokenPronunciation = (str: string): string => {
 };
 
 // Dynamically convert AgentCore's generated analysis into natural spoken speech without hardcoded placeholders
-export const formatAgentCoreSpokenText = (text: string, contextPrompt?: string): string => {
+export const formatAgentCoreSpokenText = (text: string): string => {
   if (!text) return '';
 
-  let spoken = text
+  const spoken = text
     .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '') // strip internal thoughts
     .replace(/```[\s\S]*?```/g, '') // strip raw multiline code blocks (e.g. raw G-code) so TTS stays fluid
     .replace(/`([^`]+)`/g, '$1') // unwrap inline code

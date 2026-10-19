@@ -6,6 +6,9 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const HARNESS_ARN = 'arn:aws:bedrock-agentcore:us-east-1:152307755678:harness/EchoForgeHarnessV9-qjI7ySsTk3';
+const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN?.trim();
+const MAX_PROMPT_LENGTH = 4_000;
+const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{33,256}$/;
 
 function getClient() {
   const region = process.env.APP_AWS_REGION || process.env.AWS_REGION || 'us-east-1';
@@ -28,21 +31,50 @@ function getClient() {
 
 export async function POST(req: NextRequest) {
   try {
-    const client = getClient();
-    const body = await req.json();
-    const { prompt, sessionId } = body;
-
-    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
-      return NextResponse.json({ error: 'Invalid request: prompt is required' }, { status: 400 });
+    if (!MCP_AUTH_TOKEN) {
+      return NextResponse.json(
+        { error: 'Metrology service authentication is not configured' },
+        { status: 503 }
+      );
     }
 
-    // Sessions must be >= 33 chars for AgentCore runtime
-    const currentSessionId: string = sessionId || (uuidv4() + '-1');
+    let body: unknown;
+    try {
+      const rawBody = await req.text();
+      if (new TextEncoder().encode(rawBody).byteLength > 16_384) {
+        return NextResponse.json({ error: 'Request is too large' }, { status: 413 });
+      }
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 });
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Request body must be a JSON object' }, { status: 400 });
+    }
+
+    const { prompt, sessionId } = body as { prompt?: unknown; sessionId?: unknown };
+
+    if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > MAX_PROMPT_LENGTH) {
+      return NextResponse.json(
+        { error: `Prompt must contain 1 to ${MAX_PROMPT_LENGTH} characters` },
+        { status: 400 }
+      );
+    }
+
+    // AgentCore requires a long session ID. Restrict it to opaque URL-safe characters.
+    if (sessionId !== undefined && (typeof sessionId !== 'string' || !SESSION_ID_PATTERN.test(sessionId))) {
+      return NextResponse.json({ error: 'Invalid sessionId' }, { status: 400 });
+    }
+    const currentSessionId = sessionId || `${uuidv4()}-1`;
+    const client = getClient();
 
     const command = new InvokeHarnessCommand({
       harnessArn: HARNESS_ARN,
       runtimeSessionId: currentSessionId,
       messages: [{ role: 'user', content: [{ text: prompt }] }],
+      maxIterations: 3,
+      maxTokens: 1_000,
+      timeoutSeconds: 45,
     });
 
     const response = await client.send(command);
@@ -78,7 +110,7 @@ export async function POST(req: NextRequest) {
       const featureFromJson = fullText.match(/"feature_name"\s*:\s*"([^"]+)"/i) || fullText.match(/'feature_name'\s*:\s*'([^']+)'/i);
       const featureFromText = fullText.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
 
-      let feature = (
+      const feature = (
         featureFromPrompt?.[1] ||
         featureFromJson?.[1] ||
         featureFromText?.[1] ||
@@ -96,7 +128,10 @@ export async function POST(req: NextRequest) {
       if (isQuery) {
         const queryRes = await fetch('https://echoforge-mcp.onrender.com/query', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${MCP_AUTH_TOKEN}`,
+          },
           body: JSON.stringify({ feature_name: feature }),
         }).then((r) => r.json()).catch(() => null);
 
@@ -106,7 +141,10 @@ export async function POST(req: NextRequest) {
       } else {
         const repairRes = await fetch('https://echoforge-mcp.onrender.com/repair', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${MCP_AUTH_TOKEN}`,
+          },
           body: JSON.stringify({ feature_name: feature, deviation_microns: devMicrons }),
         }).then((r) => r.json()).catch(() => null);
 
@@ -122,6 +160,9 @@ export async function POST(req: NextRequest) {
         const followUpCommand = new InvokeHarnessCommand({
           harnessArn: HARNESS_ARN,
           runtimeSessionId: currentSessionId,
+          maxIterations: 1,
+          maxTokens: 700,
+          timeoutSeconds: 30,
           messages: [
             {
               role: 'user',
@@ -170,11 +211,10 @@ export async function POST(req: NextRequest) {
       stopReason,
     });
 
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('[EchoForge API] AgentCore invocation error:', msg);
+  } catch {
+    console.error('[EchoForge API] AgentCore invocation failed');
     return NextResponse.json(
-      { error: 'Failed to invoke AgentCore Harness', details: msg },
+      { error: 'Failed to process the request. Please try again.' },
       { status: 500 }
     );
   }

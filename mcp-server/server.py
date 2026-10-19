@@ -1,12 +1,15 @@
 import os
 import re
 import json
+import hmac
+import math
 import threading
 import time
 import uvicorn
 from starlette.applications import Starlette
 from starlette.routing import Route
 from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 from mcp.server.mcpserver import MCPServer
 from mcp.server.sse import SseServerTransport
 from mcp.server.transport_security import TransportSecuritySettings
@@ -19,31 +22,26 @@ PARTS_METROLOGY = {
         "nominal": 50.000,
         "tolerance": 2.0,
         "unit": "microns",
-        "procedure": lambda dev: f"CNC RE-MILLING (Program 4A): Shave off {dev:.3f} microns using 1mm carbide end mill. Recalibrate robotic welder offset by -0.05mm."
     },
     "MAIN_BORE_HOLE": {
         "nominal": 15.000,
         "tolerance": 0.1,
         "unit": "microns",
-        "procedure": lambda dev: f"PRECISION DIAMOND HONING: Bore out cylinder bore by an additional {dev:.3f} microns using titanium boring bar T-12 at 3200 RPM."
     },
     "TURBINE_BLADE_ROOT": {
         "nominal": 32.500,
         "tolerance": 1.5,
         "unit": "microns",
-        "procedure": lambda dev: f"EDM SPARK EROSION (Cycle E-9): Submerge in dielectric fluid and run spark erosion pass at 45A to re-profile fir-tree root tangs by {dev:.3f} microns."
     },
     "INLET_NOZZLE_RING": {
         "nominal": 78.200,
         "tolerance": 2.5,
         "unit": "microns",
-        "procedure": lambda dev: f"MICRO-ABRASIVE CNC BLENDING: Perform 3-axis orbital lap on nozzle throat surface to reduce deviation of {dev:.3f} microns, followed by ceramic passivation coat."
     },
     "EXHAUST_STATOR_BOSS": {
         "nominal": 24.000,
         "tolerance": 1.8,
         "unit": "microns",
-        "procedure": lambda dev: f"FACING & RE-THREAD CHASING: CNC face skim cut of 0.02mm on boss seating surface and chase M24 threads with high-speed toolholder."
     }
 }
 
@@ -66,8 +64,84 @@ def get_deviation(feature_name: str) -> str:
                     tol_info = f" (Tolerance Zone: {float(tol_match.group(1))} microns)" if tol_match else ""
                     return f"The deviation for {clean_name} is {dev_val:.3f} microns{tol_info}."
         return f"Feature '{feature_name}' not found. Supported parts: {', '.join(PARTS_METROLOGY.keys())}."
-    except Exception as e:
-        return f"Failed: {str(e)}"
+    except Exception:
+        return "Error: Unable to read inspection data."
+
+
+class MCPRequestSecurityMiddleware:
+    """Authenticate public tool and REST routes and reject untrusted hosts/origins."""
+
+    protected_paths = {"/mcp", "/sse", "/messages", "/query", "/repair"}
+
+    def __init__(self, app: ASGIApp):
+        self.app = app
+        self.token = os.environ.get("MCP_AUTH_TOKEN", "").strip()
+        self.allowed_hosts = self._env_list(
+            "MCP_ALLOWED_HOSTS",
+            [
+                "echoforge-mcp.onrender.com",
+                "echoforge-mcp.onrender.com:*",
+                "localhost:*",
+                "127.0.0.1:*",
+                "testserver",
+            ],
+        )
+        self.allowed_origins = self._env_list(
+            "MCP_ALLOWED_ORIGINS",
+            [
+                "https://echoforge.aenox.me",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ],
+        )
+
+    @staticmethod
+    def _env_list(name: str, default: list[str]) -> list[str]:
+        configured = os.environ.get(name)
+        if configured is None:
+            return default
+        return [item.strip() for item in configured.split(",") if item.strip()]
+
+    @staticmethod
+    def _matches(value: str, allowlist: list[str]) -> bool:
+        return any(
+            value == allowed
+            or (allowed.endswith(":*") and value.startswith(allowed[:-1]))
+            for allowed in allowlist
+        )
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope.get("path") not in self.protected_paths:
+            await self.app(scope, receive, send)
+            return
+
+        headers = {key.lower(): value for key, value in scope.get("headers", [])}
+        host = headers.get(b"host", b"").decode("latin-1")
+        origin = headers.get(b"origin", b"").decode("latin-1")
+        if not self._matches(host, self.allowed_hosts):
+            response = JSONResponse({"error": "Host not allowed"}, status_code=421)
+        elif origin and not self._matches(origin, self.allowed_origins):
+            response = JSONResponse({"error": "Origin not allowed"}, status_code=403)
+        elif not self.token:
+            response = JSONResponse({"error": "MCP authentication is not configured"}, status_code=503)
+        else:
+            authorization = headers.get(b"authorization", b"")
+            scheme, separator, presented_token = authorization.partition(b" ")
+            if (
+                not separator
+                or scheme.lower() != b"bearer"
+                or not hmac.compare_digest(presented_token.strip(), self.token.encode("utf-8"))
+            ):
+                response = JSONResponse(
+                    {"error": "Unauthorized"},
+                    status_code=401,
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            else:
+                await self.app(scope, receive, send)
+                return
+
+        await response(scope, receive, send)
 
 @mcp.tool()
 def query_dmo_deviation(feature_name: str) -> str:
@@ -76,40 +150,63 @@ def query_dmo_deviation(feature_name: str) -> str:
 
 @mcp.tool()
 def get_repair_procedure(feature_name: str, deviation_microns: float) -> str:
-    """Gets the standard engineering repair procedure for a feature that is out of tolerance."""
+    """Return a non-operational review notice for simulated metrology data."""
+    if not isinstance(feature_name, str):
+        raise ValueError("feature_name must be a supported feature name")
     clean_name = feature_name.strip().upper().replace(" ", "_")
     part = PARTS_METROLOGY.get(clean_name)
-    if part:
-        return f"REPAIR PROCEDURE FOR {clean_name}: {part['procedure'](deviation_microns)}"
-    
-    # Fallback heuristics
-    if "FLANGE" in clean_name:
-        return f"REPAIR PROCEDURE FOR {clean_name}: Apply CNC re-milling program 4A to shave off {deviation_microns:.3f} microns."
-    elif "HOLE" in clean_name or "BORE" in clean_name:
-        return f"REPAIR PROCEDURE FOR {clean_name}: Bore out hole by an additional {deviation_microns:.3f} microns using titanium boring tool."
-    elif "BLADE" in clean_name:
-        return f"REPAIR PROCEDURE FOR {clean_name}: EDM spark erosion pass to re-profile root tangs by {deviation_microns:.3f} microns."
-    else:
-        return f"REPAIR PROCEDURE FOR {clean_name}: Standard precision CNC skim cut and surface re-measurement required."
+    if part is None:
+        raise ValueError(f"Unsupported feature '{feature_name}'")
+    try:
+        deviation = float(deviation_microns)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("deviation_microns must be a finite number") from exc
+    if not math.isfinite(deviation):
+        raise ValueError("deviation_microns must be a finite number")
+
+    tolerance = part["tolerance"]
+    magnitude = abs(deviation)
+    if magnitude <= tolerance:
+        return (
+            f"METROLOGY REVIEW FOR {clean_name}: simulated deviation is {deviation:.3f} microns "
+            f"within the ±{tolerance:.3f} micron tolerance. No repair is indicated by this reading."
+        )
+    return (
+        f"SIMULATION ONLY — NOT A CNC INSTRUCTION. {clean_name} has a simulated deviation of "
+        f"{deviation:.3f} microns, outside its ±{tolerance:.3f} micron tolerance. "
+        "Do not machine from this output. A qualified engineer must verify the actual inspection "
+        "data and select an approved work instruction."
+    )
 
 @mcp.custom_route("/repair", methods=["POST"])
 async def rest_repair(request):
     try:
         body = await request.json()
-        feature = body.get("feature_name", "UPPER_FLANGE")
-        deviation = float(body.get("deviation_microns", 0.0))
-        return JSONResponse({"repair_procedure": get_repair_procedure(feature, deviation)})
-    except:
-        return JSONResponse({"repair_procedure": get_repair_procedure("UPPER_FLANGE", 0.0)})
+    except (ValueError, json.JSONDecodeError):
+        return JSONResponse({"error": "Request body must be valid JSON"}, status_code=400)
+    if not isinstance(body, dict) or "feature_name" not in body or "deviation_microns" not in body:
+        return JSONResponse(
+            {"error": "feature_name and deviation_microns are required"},
+            status_code=400,
+        )
+    try:
+        procedure = get_repair_procedure(body["feature_name"], body["deviation_microns"])
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    return JSONResponse({"repair_procedure": procedure})
 
 @mcp.custom_route("/query", methods=["POST"])
 async def rest_query(request):
     try:
         body = await request.json()
-        feature = body.get("feature_name", "UPPER_FLANGE")
-        return JSONResponse({"deviation_info": get_deviation(feature)})
-    except:
-        return JSONResponse({"deviation_info": get_deviation("UPPER_FLANGE")})
+    except (ValueError, json.JSONDecodeError):
+        return JSONResponse({"error": "Request body must be valid JSON"}, status_code=400)
+    if not isinstance(body, dict) or not isinstance(body.get("feature_name"), str):
+        return JSONResponse({"error": "feature_name must be a string"}, status_code=400)
+    feature = body["feature_name"].strip().upper().replace(" ", "_")
+    if feature not in PARTS_METROLOGY:
+        return JSONResponse({"error": "Unsupported feature name"}, status_code=400)
+    return JSONResponse({"deviation_info": get_deviation(feature)})
 
 @mcp.custom_route("/health", methods=["GET"])
 async def rest_health(request):
@@ -170,9 +267,31 @@ mcp._custom_starlette_routes.extend([
     Route("/messages", endpoint=handle_messages, methods=["POST"]),
 ])
 
-# Create Streamable HTTP app (MCP Spec 2025-11-25) with DNS rebinding protection disabled for cloud proxy routing
-security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
+# Restrict accepted public hostnames and browser origins while keeping MCP DNS rebinding
+# protection enabled. The reverse proxy's public Host header must be allowlisted.
+security = TransportSecuritySettings(
+    enable_dns_rebinding_protection=True,
+    allowed_hosts=MCPRequestSecurityMiddleware._env_list(
+        "MCP_ALLOWED_HOSTS",
+        [
+            "echoforge-mcp.onrender.com",
+            "echoforge-mcp.onrender.com:*",
+            "localhost:*",
+            "127.0.0.1:*",
+            "testserver",
+        ],
+    ),
+    allowed_origins=MCPRequestSecurityMiddleware._env_list(
+        "MCP_ALLOWED_ORIGINS",
+        [
+            "https://echoforge.aenox.me",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ],
+    ),
+)
 app = mcp.streamable_http_app(streamable_http_path="/mcp", transport_security=security)
+app.add_middleware(MCPRequestSecurityMiddleware)
 
 if __name__ == "__main__":
     t = threading.Thread(target=generate_dummy_dmo, daemon=True)

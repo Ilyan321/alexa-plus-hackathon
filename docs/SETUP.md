@@ -29,10 +29,16 @@ source .venv/bin/activate       # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+Configure a local server token before launching. Use the same value in `frontend-dashboard/.env.local` as `MCP_AUTH_TOKEN`.
+```bash
+export MCP_AUTH_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+```
+
 ### 3. Run automated compliance test suite
 Verify that the Streamable HTTP handshake, tool listing, tool invocation, and legacy REST endpoints operate as expected:
 ```bash
 python test_streamable_http.py
+python test_security.py
 ```
 **Expected output:**
 ```text
@@ -60,11 +66,13 @@ curl -s http://localhost:8000/health
 # Query live deviation for a part
 curl -s -X POST http://localhost:8000/query \
      -H "Content-Type: application/json" \
+     -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
      -d '{"feature_name": "UPPER_FLANGE"}'
 
 # Query CNC repair procedure
 curl -s -X POST http://localhost:8000/repair \
      -H "Content-Type: application/json" \
+     -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
      -d '{"feature_name": "UPPER_FLANGE", "deviation_microns": 2.3}'
 ```
 

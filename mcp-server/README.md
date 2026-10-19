@@ -18,7 +18,7 @@ This is the **Python MCP edge bridge** for EchoForge. It:
 - Parses live legacy aerospace **`.DMO` (DMIS format)** inspection files from a Coordinate Measuring Machine (CMM)
 - Exposes two AI-callable tools to AWS Bedrock AgentCore:
   - `query_dmo_deviation` — returns the live measured deviation vs. tolerance for a named part feature
-  - `get_repair_procedure` — returns the exact CNC machining repair directive for a given deviation
+  - `get_repair_procedure` — returns a non-operational review notice for simulated readings
 
 ### Supported Aerospace Features
 
@@ -53,6 +53,7 @@ pip install -r requirements.txt
 Verify MCP 2025-11-25 Streamable HTTP compliance before starting:
 ```bash
 python test_streamable_http.py
+python test_security.py
 ```
 
 Expected output:
@@ -69,6 +70,7 @@ ALL MCP STREAMABLE HTTP VERIFICATION TESTS PASSED!
 
 ### 4. Start the server
 ```bash
+export MCP_AUTH_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 python server.py
 # Listening on http://localhost:8000
 ```
@@ -84,6 +86,8 @@ python server.py
 | `/sse` | `GET` | Legacy Server-Sent Events transport (backwards compat) |
 | `/query` | `POST` | REST: query deviation for a named feature |
 | `/repair` | `POST` | REST: get CNC repair procedure for a deviation |
+
+All routes except `/health` require `Authorization: Bearer $MCP_AUTH_TOKEN`. Set the same server-only `MCP_AUTH_TOKEN` in the Next.js host so its server-side requests can authenticate. Never expose it through a `NEXT_PUBLIC_` variable. `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` can override the default allowlists.
 
 ### Example: Health Check
 ```bash
@@ -102,6 +106,7 @@ curl -s https://echoforge-mcp.onrender.com/health
 ```bash
 curl -s -X POST https://echoforge-mcp.onrender.com/query \
      -H "Content-Type: application/json" \
+     -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
      -d '{"feature_name": "UPPER_FLANGE"}'
 ```
 
@@ -109,6 +114,7 @@ curl -s -X POST https://echoforge-mcp.onrender.com/query \
 ```bash
 curl -s -X POST https://echoforge-mcp.onrender.com/repair \
      -H "Content-Type: application/json" \
+     -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
      -d '{"feature_name": "TURBINE_BLADE_ROOT", "deviation_microns": 1.687}'
 ```
 
@@ -136,6 +142,7 @@ mcp-server/
 │   ├── happy_path.dmo          # Valid DMO fixture for unit tests
 │   └── malformed.dmo           # Malformed DMO fixture for error handling tests
 ├── test_streamable_http.py     # MCP 2025-11-25 Streamable HTTP compliance tests
+├── test_security.py            # Auth, host/origin, and safe repair tests
 ├── test_mcp_logic.py           # Unit tests for DMO parsing and tool logic
 ├── requirements.txt            # Python dependencies
 └── render.yaml                 # Render deployment config

@@ -17,7 +17,6 @@ import {
   Wrench,
   Radio,
   Ear,
-  Headphones,
 } from 'lucide-react';
 import {
   stripThinking,
@@ -53,8 +52,8 @@ export default function VoiceAssistantPage() {
   const [telemetryHistory, setTelemetryHistory] = useState<Record<string, number[]>>({});
 
   // Voice engine refs
-  const recognitionRef = useRef<any>(null);
-  const bargeInRecognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const bargeInRecognitionRef = useRef<SpeechRecognition | null>(null);
   const isRecordingIntentRef = useRef(false);
   const accumulatedTranscriptRef = useRef('');
   const latestLiveTranscriptRef = useRef('');
@@ -109,7 +108,7 @@ export default function VoiceAssistantPage() {
 
   // Speak agent response aloud with continuous hands-free follow-up loop and barge-in detection
   const speakResponse = useCallback(
-    (text: string, contextPrompt?: string) => {
+    (text: string) => {
       if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
         if (continuousHandsFreeRef.current && !isTextMode) {
           setTimeout(() => startRecording(true), 500);
@@ -135,7 +134,7 @@ export default function VoiceAssistantPage() {
       }
 
       // Dynamically read AgentCore's generated response aloud naturally without static placeholders
-      const clean = formatAgentCoreSpokenText(text, contextPrompt);
+      const clean = formatAgentCoreSpokenText(text);
       if (!clean) {
         if (continuousHandsFreeRef.current && !isTextMode) {
           setTimeout(() => startRecording(true), 500);
@@ -174,17 +173,17 @@ export default function VoiceAssistantPage() {
       }
 
       const startBargeInListener = () => {
-        const SpeechRecognition =
-          (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (!SpeechRecognition) return;
+        const SpeechRecognitionConstructor =
+          window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognitionConstructor) return;
 
         try {
-          const bargeIn = new SpeechRecognition();
+          const bargeIn = new SpeechRecognitionConstructor();
           bargeIn.continuous = true;
           bargeIn.interimResults = true;
           bargeIn.lang = 'en-US';
 
-          bargeIn.onresult = (event: any) => {
+          bargeIn.onresult = (event) => {
             if (!isAssistantSpeakingRef.current) return;
             for (let i = event.resultIndex; i < event.results.length; ++i) {
               const transcript = event.results[i][0]?.transcript?.trim().toLowerCase() || '';
@@ -208,7 +207,7 @@ export default function VoiceAssistantPage() {
             }
           };
 
-          bargeIn.onerror = (e: any) => {
+          bargeIn.onerror = (e) => {
             if (e.error !== 'no-speech') {
               console.warn('[EchoForge] Barge-in recognition note:', e.error);
             }
@@ -321,7 +320,7 @@ export default function VoiceAssistantPage() {
             : '✓ Within Tolerance (Nominal)'
         );
 
-        speakResponse(cleanText, prompt);
+        speakResponse(cleanText);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Unknown error';
         setDeviationStatus('error');
@@ -411,10 +410,10 @@ export default function VoiceAssistantPage() {
     // Do not start recording if assistant is actively speaking
     if (isAssistantSpeakingRef.current) return;
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognitionConstructor =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
+    if (!SpeechRecognitionConstructor) {
       alert('Speech recognition is not supported in this browser. Please use Google Chrome or Edge.');
       return;
     }
@@ -440,13 +439,13 @@ export default function VoiceAssistantPage() {
     const spawnRecognition = () => {
       if (!isRecordingIntentRef.current || isAssistantSpeakingRef.current) return;
 
-      const rec = new SpeechRecognition();
+      const rec = new SpeechRecognitionConstructor();
       rec.continuous = true;
       rec.interimResults = true;
       rec.lang = 'en-US';
       rec.maxAlternatives = 1;
 
-      rec.onresult = (event: any) => {
+      rec.onresult = (event) => {
         // Discard any audio if the assistant somehow started speaking
         if (isAssistantSpeakingRef.current) return;
 
@@ -477,7 +476,7 @@ export default function VoiceAssistantPage() {
         }, 1800);
       };
 
-      rec.onerror = (event: any) => {
+      rec.onerror = (event) => {
         if (event.error === 'no-speech') {
           return;
         }
@@ -512,14 +511,14 @@ export default function VoiceAssistantPage() {
       try {
         rec.start();
         recognitionRef.current = rec;
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.warn('Speech recognition spawn warning:', e);
         // If device was still resetting from previous session, retry after short backoff
         if (isRecordingIntentRef.current && !isAssistantSpeakingRef.current) {
           setTimeout(() => {
             if (isRecordingIntentRef.current && !isAssistantSpeakingRef.current) {
               try {
-                const retryRec = new SpeechRecognition();
+                const retryRec = new SpeechRecognitionConstructor();
                 retryRec.continuous = true;
                 retryRec.interimResults = true;
                 retryRec.lang = 'en-US';

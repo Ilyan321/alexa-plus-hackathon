@@ -9,7 +9,10 @@ Verifies:
 """
 
 import sys
+import os
 from starlette.testclient import TestClient
+
+os.environ["MCP_AUTH_TOKEN"] = "test-mcp-token"
 from server import app
 
 def test_echoforge_mcp_compliance():
@@ -21,14 +24,22 @@ def test_echoforge_mcp_compliance():
         print("✓ PASS: /health reports MCP 2025-11-25 support")
 
         # 2. Existing REST compatibility
-        q = client.post("/query", json={"feature_name": "UPPER_FLANGE"})
+        q = client.post(
+            "/query",
+            json={"feature_name": "UPPER_FLANGE"},
+            headers={"Authorization": "Bearer test-mcp-token"},
+        )
         assert q.status_code == 200
         assert "deviation" in q.json()["deviation_info"].lower()
         print("✓ PASS: Existing /query backwards compatibility intact")
 
-        r = client.post("/repair", json={"feature_name": "UPPER_FLANGE", "deviation_microns": 2.5})
+        r = client.post(
+            "/repair",
+            json={"feature_name": "UPPER_FLANGE", "deviation_microns": 2.5},
+            headers={"Authorization": "Bearer test-mcp-token"},
+        )
         assert r.status_code == 200
-        assert "REPAIR PROCEDURE" in r.json()["repair_procedure"]
+        assert "NOT A CNC INSTRUCTION" in r.json()["repair_procedure"]
         print("✓ PASS: Existing /repair backwards compatibility intact")
 
         # 3. Streamable HTTP MCP handshake (Spec 2025-11-25)
@@ -44,7 +55,10 @@ def test_echoforge_mcp_compliance():
                     "clientInfo": {"name": "alexa-plus-crawler", "version": "1.0.0"}
                 }
             },
-            headers={"mcp-protocol-version": "2025-11-25"}
+            headers={
+                "mcp-protocol-version": "2025-11-25",
+                "Authorization": "Bearer test-mcp-token",
+            }
         )
         assert init_res.status_code == 200
         session_id = init_res.headers.get("mcp-session-id")
@@ -60,7 +74,11 @@ def test_echoforge_mcp_compliance():
                 "method": "tools/list",
                 "params": {}
             },
-            headers={"mcp-protocol-version": "2025-11-25", "mcp-session-id": session_id}
+            headers={
+                "mcp-protocol-version": "2025-11-25",
+                "mcp-session-id": session_id,
+                "Authorization": "Bearer test-mcp-token",
+            }
         )
         assert tools_res.status_code == 200
         assert "query_dmo_deviation" in tools_res.text
@@ -79,7 +97,11 @@ def test_echoforge_mcp_compliance():
                     "arguments": {"feature_name": "TURBINE_BLADE_ROOT"}
                 }
             },
-            headers={"mcp-protocol-version": "2025-11-25", "mcp-session-id": session_id}
+            headers={
+                "mcp-protocol-version": "2025-11-25",
+                "mcp-session-id": session_id,
+                "Authorization": "Bearer test-mcp-token",
+            }
         )
         assert call_res.status_code == 200
         assert "TURBINE_BLADE_ROOT" in call_res.text

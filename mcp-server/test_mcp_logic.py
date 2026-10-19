@@ -28,7 +28,7 @@ def run_tests():
 
     # 3. Test: Missing Feature
     result = server.query_dmo_deviation("MISSING_FEATURE")
-    assert "was not found" in result, f"Expected Missing Feature message, got: {result}"
+    assert "not found" in result, f"Expected Missing Feature message, got: {result}"
     print("✓ Missing Feature test passed")
 
     # 4. Test: Malformed Data
