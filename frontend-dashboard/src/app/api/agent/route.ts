@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     }
 
     const featureFromPrompt = prompt.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
-    const explicitMetrologyRequest = /\b(deviation|tolerance|reading|status|inspect|inspection|sensor|measure|query|check|current|live)\b/i.test(prompt);
+    const explicitMetrologyRequest = /\b(deviations?|tolerances?|readings?|values?|status|inspect|inspection|sensor|measure|query|check|current|live)\b/i.test(prompt);
     const explicitRepairRequest = /\b(repair procedure|repair instructions|CNC procedure|rework procedure|retrieve.*repair|repair.*procedure)\b/i.test(prompt);
 
     // AgentCore action payloads can appear as plain JSON instead of the named action marker.
