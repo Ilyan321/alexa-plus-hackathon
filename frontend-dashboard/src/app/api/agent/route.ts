@@ -77,6 +77,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid sessionId' }, { status: 400 });
     }
     const currentSessionId = sessionId || `${uuidv4()}-1`;
+
+    const featureFromPrompt = prompt.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
+    const explicitMetrologyRequest = /\b(deviations?|tolerances?|readings?|values?|status|inspect|inspection|sensor|measure|query|check|current|live)\b/i.test(prompt);
+    const explicitRepairRequest = /\b(repair procedure|repair instructions|CNC procedure|rework procedure|retrieve.*repair|repair.*procedure)\b/i.test(prompt);
+
+    // A known inspection feature is deterministic: query the measurement service first
+    // instead of asking the language model to decide whether to call it.
+    if (featureFromPrompt && (explicitMetrologyRequest || explicitRepairRequest)) {
+      const feature = featureFromPrompt[1].toUpperCase();
+      const deviationMatch = prompt.match(/([0-9.]+)\s*micron/i);
+      const deviationMicrons = deviationMatch ? parseFloat(deviationMatch[1]) : 2.1;
+      const result = explicitRepairRequest
+        ? await postMcp('repair', { feature_name: feature, deviation_microns: deviationMicrons })
+        : await postMcp('query', { feature_name: feature });
+      const report = explicitRepairRequest ? result?.repair_procedure : result?.deviation_info;
+
+      if (!report || typeof report !== 'string') {
+        throw new Error(`MCP returned no ${explicitRepairRequest ? 'repair procedure' : 'deviation reading'}`);
+      }
+
+      return NextResponse.json({
+        text: `### ${explicitRepairRequest ? 'CNC Repair Procedure' : 'Live Deviation Report'}: ${feature}\n\n${report}`,
+        sessionId: currentSessionId,
+        stopReason: 'end_turn',
+      });
+    }
+
     const client = getClient();
 
     const command = new InvokeHarnessCommand({
@@ -104,10 +131,6 @@ export async function POST(req: NextRequest) {
         }
       }
     }
-
-    const featureFromPrompt = prompt.match(/\b(UPPER_FLANGE|MAIN_BORE_HOLE|TURBINE_BLADE_ROOT|INLET_NOZZLE_RING|EXHAUST_STATOR_BOSS)\b/i);
-    const explicitMetrologyRequest = /\b(deviations?|tolerances?|readings?|values?|status|inspect|inspection|sensor|measure|query|check|current|live)\b/i.test(prompt);
-    const explicitRepairRequest = /\b(repair procedure|repair instructions|CNC procedure|rework procedure|retrieve.*repair|repair.*procedure)\b/i.test(prompt);
 
     // AgentCore action payloads can appear as plain JSON instead of the named action marker.
     const hasToolIntent =
