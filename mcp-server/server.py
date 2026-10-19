@@ -76,16 +76,7 @@ class MCPRequestSecurityMiddleware:
     def __init__(self, app: ASGIApp):
         self.app = app
         self.token = os.environ.get("MCP_AUTH_TOKEN", "").strip()
-        self.allowed_hosts = self._env_list(
-            "MCP_ALLOWED_HOSTS",
-            [
-                "echoforge-mcp.onrender.com",
-                "echoforge-mcp.onrender.com:*",
-                "localhost:*",
-                "127.0.0.1:*",
-                "testserver",
-            ],
-        )
+        self.allowed_hosts = self._allowed_hosts()
         self.allowed_origins = self._env_list(
             "MCP_ALLOWED_ORIGINS",
             [
@@ -101,6 +92,23 @@ class MCPRequestSecurityMiddleware:
         if configured is None:
             return default
         return [item.strip() for item in configured.split(",") if item.strip()]
+
+    @classmethod
+    def _allowed_hosts(cls) -> list[str]:
+        hosts = cls._env_list(
+            "MCP_ALLOWED_HOSTS",
+            [
+                "echoforge-mcp.onrender.com",
+                "echoforge-mcp.onrender.com:*",
+                "localhost:*",
+                "127.0.0.1:*",
+                "testserver",
+            ],
+        )
+        render_hostname = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "").strip()
+        if render_hostname and render_hostname not in hosts:
+            hosts.append(render_hostname)
+        return hosts
 
     @staticmethod
     def _matches(value: str, allowlist: list[str]) -> bool:
@@ -619,16 +627,7 @@ mcp._custom_starlette_routes.extend([
 # protection enabled. The reverse proxy's public Host header must be allowlisted.
 security = TransportSecuritySettings(
     enable_dns_rebinding_protection=True,
-    allowed_hosts=MCPRequestSecurityMiddleware._env_list(
-        "MCP_ALLOWED_HOSTS",
-        [
-            "echoforge-mcp.onrender.com",
-            "echoforge-mcp.onrender.com:*",
-            "localhost:*",
-            "127.0.0.1:*",
-            "testserver",
-        ],
-    ),
+    allowed_hosts=MCPRequestSecurityMiddleware._allowed_hosts(),
     allowed_origins=MCPRequestSecurityMiddleware._env_list(
         "MCP_ALLOWED_ORIGINS",
         [

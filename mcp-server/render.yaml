@@ -1,6 +1,7 @@
 services:
   - type: web
-    name: echoforge-mcp
+    name: echoforge-mcp-fresh
+    rootDir: ./mcp-server
     env: python
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python server.py"
