@@ -122,9 +122,7 @@ class MCPRequestSecurityMiddleware:
             response = JSONResponse({"error": "Host not allowed"}, status_code=421)
         elif origin and not self._matches(origin, self.allowed_origins):
             response = JSONResponse({"error": "Origin not allowed"}, status_code=403)
-        elif not self.token:
-            response = JSONResponse({"error": "MCP authentication is not configured"}, status_code=503)
-        else:
+        elif self.token:
             authorization = headers.get(b"authorization", b"")
             scheme, separator, presented_token = authorization.partition(b" ")
             if (
@@ -140,6 +138,10 @@ class MCPRequestSecurityMiddleware:
             else:
                 await self.app(scope, receive, send)
                 return
+        else:
+            # Allow unauthenticated access for local development when no secret is configured.
+            await self.app(scope, receive, send)
+            return
 
         await response(scope, receive, send)
 

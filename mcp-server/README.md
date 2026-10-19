@@ -87,7 +87,7 @@ python server.py
 | `/query` | `POST` | REST: query deviation for a named feature |
 | `/repair` | `POST` | REST: get CNC repair procedure for a deviation |
 
-All routes except `/health` require `Authorization: Bearer $MCP_AUTH_TOKEN`. Set the same server-only `MCP_AUTH_TOKEN` in the Next.js host so its server-side requests can authenticate. Never expose it through a `NEXT_PUBLIC_` variable. `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` can override the default allowlists.
+When `MCP_AUTH_TOKEN` is configured, all routes except `/health` require `Authorization: Bearer $MCP_AUTH_TOKEN`. If it is unset, these routes allow unauthenticated access for local development. Production deployments should configure a strong secret and set the matching server-only token in the Next.js host; never expose it through a `NEXT_PUBLIC_` variable. `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` can override the default allowlists.
 
 ### Example: Health Check
 ```bash

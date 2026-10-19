@@ -2,6 +2,7 @@
 
 import os
 import unittest
+from unittest.mock import patch
 
 import httpx
 
@@ -44,6 +45,21 @@ class MCPRequestSecurityTests(unittest.IsolatedAsyncioTestCase):
             json={"feature_name": "UPPER_FLANGE"},
             headers={"Authorization": "Bearer test-mcp-token"},
         )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("deviation_info", response.json())
+
+    async def test_query_is_public_when_no_token_is_configured(self):
+        with patch.dict(os.environ, {"MCP_AUTH_TOKEN": ""}):
+            app = server.MCPRequestSecurityMiddleware(server.app)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="https://echoforge-mcp.onrender.com",
+        ) as client:
+            response = await client.post(
+                "/query",
+                json={"feature_name": "UPPER_FLANGE"},
+            )
+
         self.assertEqual(response.status_code, 200)
         self.assertIn("deviation_info", response.json())
 
