@@ -205,6 +205,13 @@ export async function POST(req: NextRequest) {
         .trim();
     }
 
+    if (!fullText.trim()) {
+      return NextResponse.json(
+        { error: 'Agent returned an empty response. Please try again.' },
+        { status: 502 }
+      );
+    }
+
     return NextResponse.json({
       text: fullText,
       sessionId: currentSessionId,

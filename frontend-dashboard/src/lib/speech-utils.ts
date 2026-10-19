@@ -8,7 +8,7 @@ export const stripThinking = (text: string): string => {
       return last.replace(/RenderServerTarget___\w+/g, 'sensor gateway');
     }
   }
-  return stripped || text || 'Analysis complete.';
+  return stripped || text;
 };
 
 // Parse deviation value from a text string

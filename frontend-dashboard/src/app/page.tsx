@@ -99,7 +99,7 @@ export default function VoiceAssistantPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.details || `HTTP ${res.status}`);
+        throw new Error(err.error || err.details || `HTTP ${res.status}`);
       }
       return res.json();
     },
@@ -278,6 +278,9 @@ export default function VoiceAssistantPage() {
         const data = await callAgent(prompt);
         clearTimeout(coldStartTimer);
         const cleanText = stripThinking(data.text);
+        if (!cleanText) {
+          throw new Error('Agent returned an empty response. Please try again.');
+        }
 
         if (data.sessionId) {
           setSessionId(data.sessionId);
