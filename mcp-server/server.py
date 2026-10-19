@@ -8,7 +8,7 @@ import time
 import uvicorn
 from starlette.applications import Starlette
 from starlette.routing import Route
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, HTMLResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 from mcp.server.mcpserver import MCPServer
 from mcp.server.sse import SseServerTransport
@@ -207,6 +207,239 @@ async def rest_query(request):
     if feature not in PARTS_METROLOGY:
         return JSONResponse({"error": "Unsupported feature name"}, status_code=400)
     return JSONResponse({"deviation_info": get_deviation(feature)})
+
+@mcp.custom_route("/", methods=["GET"])
+async def root_dashboard(request):
+    html_content = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EchoForge — Metrology Bridge</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #090a0f;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .card {
+      background: radial-gradient(circle at top left, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.8));
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      max-width: 540px;
+      width: 100%;
+      padding: 2.25rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 40px -10px rgba(14, 165, 233, 0.15);
+      backdrop-filter: blur(12px);
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .logo-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+    }
+    .title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #f8fafc;
+    }
+    .subtitle {
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.75rem;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #34d399;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      background: #10b981;
+      border-radius: 50%;
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.9); }
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .info-box {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 0.85rem;
+    }
+    .info-box span {
+      display: block;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+    }
+    .info-box strong {
+      font-size: 0.875rem;
+      color: #e2e8f0;
+      font-weight: 600;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .endpoints {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .endpoints h3 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      margin-bottom: 0.6rem;
+    }
+    .endpoint-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.35rem 0;
+      font-size: 0.8rem;
+      font-family: ui-monospace, monospace;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .endpoint-item:last-child { border-bottom: none; }
+    .method {
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 700;
+    }
+    .get { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .post { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+    .auth-tag {
+      font-size: 0.65rem;
+      color: #f59e0b;
+      background: rgba(245, 158, 11, 0.1);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+    .public-tag {
+      font-size: 0.65rem;
+      color: #10b981;
+      background: rgba(16, 185, 129, 0.1);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+    .footer a {
+      color: #38bdf8;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .footer a:hover {
+      color: #7dd3fc;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="brand">
+        <div class="logo-badge">⚡</div>
+        <div>
+          <div class="title">EchoForge</div>
+          <div class="subtitle">Metrology Bridge Server</div>
+        </div>
+      </div>
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        OPERATIONAL
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-box">
+        <span>Protocol</span>
+        <strong>MCP 2025-11-25</strong>
+      </div>
+      <div class="info-box">
+        <span>Transport</span>
+        <strong>Streamable HTTP</strong>
+      </div>
+    </div>
+
+    <div class="endpoints">
+      <h3>Exposed Endpoints</h3>
+      <div class="endpoint-item">
+        <span><span class="method get">GET</span> /health</span>
+        <span class="public-tag">PUBLIC</span>
+      </div>
+      <div class="endpoint-item">
+        <span><span class="method post">POST</span> /mcp</span>
+        <span class="auth-tag">BEARER AUTH</span>
+      </div>
+      <div class="endpoint-item">
+        <span><span class="method post">POST</span> /query</span>
+        <span class="auth-tag">BEARER AUTH</span>
+      </div>
+      <div class="endpoint-item">
+        <span><span class="method post">POST</span> /repair</span>
+        <span class="auth-tag">BEARER AUTH</span>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>EchoForge Industrial Metrology Agent</span>
+      <a href="https://echoforge.aenox.me" target="_blank" rel="noreferrer">Open Dashboard &rarr;</a>
+    </div>
+  </div>
+</body>
+</html>"""
+    return HTMLResponse(content=html_content, status_code=200)
 
 @mcp.custom_route("/health", methods=["GET"])
 async def rest_health(request):
