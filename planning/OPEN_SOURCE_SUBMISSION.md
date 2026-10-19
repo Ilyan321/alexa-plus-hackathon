@@ -73,12 +73,3 @@ By releasing `mcp-server/server.py` and `test_streamable_http.py` under the **MI
 - Handling session lifecycles and DNS rebinding protections.
 - Maintaining dual compatibility with legacy Server-Sent Events (`/sse`) and HTTP REST APIs.
 
----
-
-## 📜 Devpost Form Copy-Paste Summary
-
-- **GitHub Username**: `Ilyan321`
-- **Repository**: `https://github.com/Ilyan321/alexa-plus-hackathon`
-- **What You Did**: Created EchoForge, an open-source MCP edge bridge (MCP Spec 2025-11-25 Streamable HTTP) and simulated Alexa+ hands-free voice metrology interface for aerospace cleanrooms.
-- **How It Works**: Connects AWS Bedrock AgentCore (Amazon Nova Pro) to legacy CMM `.DMO` inspection files over open-source Streamable HTTP JSON-RPC transports with real-time wake word barge-in and dynamic speech synthesis.
-- **Why It Matters**: Demolishes proprietary vendor silos in precision manufacturing while providing the open-source community with a reference implementation of the latest MCP 2025-11-25 Streamable HTTP standard in Python.
